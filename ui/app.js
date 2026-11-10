@@ -65,10 +65,12 @@ function vide(conteneur, texte) {
   conteneur.append(p);
 }
 
-function ligne(nom, detail, action) {
+function ligne(nom, detail, action, id) {
   const bouton = document.createElement("button");
   bouton.type = "button";
   bouton.className = "ligne";
+  // L'identifiant permet de retrouver la ligne après un rechargement.
+  if (id !== undefined && id !== null) bouton.dataset.id = String(id);
   const titre = document.createElement("span");
   titre.className = "ligne-nom";
   titre.textContent = nom;
@@ -262,7 +264,7 @@ async function choisirClan(bouton, clan) {
   const familles = await invoke("grandes_familles", { clanId: clan.id });
   remplir(
     "liste-gf",
-    familles.map((gf) => ligne(gf.nom, "", (b) => choisirGrandeFamille(b, gf))),
+    familles.map((gf) => ligne(gf.nom, "", (b) => choisirGrandeFamille(b, gf), gf.id)),
     "Aucune grande famille",
   );
 
@@ -278,7 +280,7 @@ async function choisirGrandeFamille(bouton, gf) {
   const lignees = await invoke("lignees", { grandeFamilleId: gf.id });
   remplir(
     "liste-lignees",
-    lignees.map((l) => ligne(l.nom, "", (b) => choisirLignee(b, l))),
+    lignees.map((l) => ligne(l.nom, "", (b) => choisirLignee(b, l), l.id)),
     "Aucune lignée",
   );
 
@@ -305,7 +307,7 @@ async function choisirLignee(bouton, lignee) {
     familles.map((f) => {
       const detail = pluriel(f.membres, "membre");
       const suffixe = occurrences.get(f.nom) > 1 ? ` · #${f.id}` : "";
-      return ligne(f.nom, detail + suffixe, (b) => choisirFamille(b, f));
+      return ligne(f.nom, detail + suffixe, (b) => choisirFamille(b, f), f.id);
     }),
     "Aucune famille",
   );
@@ -319,6 +321,264 @@ async function choisirFamille(bouton, famille) {
   etat.famille = famille;
   reinitialiserApres("famille");
   await chargerMembres();
+}
+
+/* --------------------- écrire la hiérarchie ---------------------------- */
+const NOEUDS = {
+  clan: {
+    libelle: "clan",
+    courant: () => etat.clan,
+    parent: () => null,
+    parentLibelle: null,
+  },
+  grande_famille: {
+    libelle: "grande famille",
+    courant: () => etat.grandeFamille,
+    parent: () => etat.clan,
+    parentLibelle: "un clan",
+  },
+  lignee: {
+    libelle: "lignée",
+    courant: () => etat.lignee,
+    parent: () => etat.grandeFamille,
+    parentLibelle: "une grande famille",
+  },
+  famille: {
+    libelle: "famille",
+    courant: () => etat.famille,
+    parent: () => etat.lignee,
+    parentLibelle: "une lignée",
+  },
+};
+
+async function chargerClans() {
+  const clans = await invoke("clans");
+  remplir(
+    "liste-clans",
+    clans.map((c) => ligne(c.nom, "", (b) => choisirClan(b, c), c.id)),
+    "Aucun clan",
+  );
+  return clans;
+}
+
+async function chargerGrandesFamilles(clanId) {
+  const liste = await invoke("grandes_familles", { clanId });
+  remplir(
+    "liste-gf",
+    liste.map((gf) => ligne(gf.nom, "", (b) => choisirGrandeFamille(b, gf), gf.id)),
+    "Aucune grande famille",
+  );
+  return liste;
+}
+
+async function chargerLignees(grandeFamilleId) {
+  const liste = await invoke("lignees", { grandeFamilleId });
+  remplir(
+    "liste-lignees",
+    liste.map((l) => ligne(l.nom, "", (b) => choisirLignee(b, l), l.id)),
+    "Aucune lignée",
+  );
+  return liste;
+}
+
+async function chargerFamilles(ligneeId) {
+  const liste = await invoke("familles", { ligneeId });
+  const occurrences = new Map();
+  for (const f of liste) {
+    occurrences.set(f.nom, (occurrences.get(f.nom) ?? 0) + 1);
+  }
+  remplir(
+    "liste-familles",
+    liste.map((f) => {
+      const suffixe = occurrences.get(f.nom) > 1 ? ` · #${f.id}` : "";
+      return ligne(
+        f.nom,
+        pluriel(f.membres, "membre") + suffixe,
+        (b) => choisirFamille(b, f),
+        f.id,
+      );
+    }),
+    "Aucune famille",
+  );
+  return liste;
+}
+
+function marquerParId(idListe, id) {
+  for (const bouton of $(idListe).children) {
+    if (id !== null && id !== undefined && bouton.dataset.id === String(id)) {
+      bouton.classList.add("actif");
+    } else {
+      bouton.classList.remove("actif");
+    }
+  }
+}
+
+/**
+ * Recharge la chaîne après une écriture, en retrouvant les sélections par
+ * identifiant : un nœud renommé reste sélectionné, un nœud supprimé vide les
+ * colonnes qui en dépendaient.
+ */
+async function rechargerHierarchie() {
+  // Les compteurs du haut (clans, familles, membres, encaissé) viennent de
+  // `resume` : ils doivent suivre toute création, tout renommage et toute
+  // suppression, même quand la chaîne s'arrête faute de sélection.
+  await chargerResume();
+
+  const clans = await chargerClans();
+  const clan = clans.find((c) => c.id === etat.clan?.id) ?? null;
+  etat.clan = clan;
+  marquerParId("liste-clans", clan?.id);
+  if (!clan) {
+    reinitialiserApres("clan");
+    return;
+  }
+
+  const gfs = await chargerGrandesFamilles(clan.id);
+  const gf = gfs.find((g) => g.id === etat.grandeFamille?.id) ?? null;
+  etat.grandeFamille = gf;
+  marquerParId("liste-gf", gf?.id);
+  if (!gf) {
+    reinitialiserApres("grandeFamille");
+    return;
+  }
+
+  const lignees = await chargerLignees(gf.id);
+  const lignee = lignees.find((l) => l.id === etat.lignee?.id) ?? null;
+  etat.lignee = lignee;
+  marquerParId("liste-lignees", lignee?.id);
+  if (!lignee) {
+    reinitialiserApres("lignee");
+    return;
+  }
+
+  const familles = await chargerFamilles(lignee.id);
+  const famille = familles.find((f) => f.id === etat.famille?.id) ?? null;
+  etat.famille = famille;
+  marquerParId("liste-familles", famille?.id);
+  if (!famille) {
+    reinitialiserApres("famille");
+    return;
+  }
+
+  await chargerMembres();
+  $("fil").textContent = fil();
+  $("titre-membres").textContent = famille.nom;
+}
+
+let noeudEdite = null; // { niveau, id } ; id null = création
+const suppressionsArmees = new Set();
+
+function fermerNom() {
+  $("voile-nom").hidden = true;
+  noeudEdite = null;
+}
+
+async function ouvrirNom(niveau, creation) {
+  effacerErreur();
+  const config = NOEUDS[niveau];
+  const courant = config.courant();
+
+  if (!creation && !courant) {
+    afficherErreur(`Sélectionnez d'abord ${config.libelle} à renommer.`);
+    return;
+  }
+  if (creation && niveau !== "clan" && !config.parent()) {
+    afficherErreur(`Sélectionnez d'abord ${config.parentLibelle}.`);
+    return;
+  }
+
+  noeudEdite = { niveau, id: creation ? null : courant.id };
+  $("nom-titre").textContent = creation
+    ? `Nouveau ${config.libelle}`
+    : `Renommer ${config.libelle}`;
+  $("nom-contexte").textContent = creation
+    ? (config.parent()?.nom ?? "")
+    : (courant.nom ?? "");
+  $("nom-champ").value = creation ? "" : (courant.nom ?? "");
+  $("nom-note").textContent = "";
+  $("voile-nom").hidden = false;
+  $("nom-champ").focus?.();
+}
+
+async function enregistrerNom() {
+  if (!noeudEdite) return;
+  const nom = $("nom-champ").value.trim();
+  if (!nom) {
+    $("nom-note").textContent = "Le nom est obligatoire.";
+    return;
+  }
+
+  const config = NOEUDS[noeudEdite.niveau];
+  try {
+    if (noeudEdite.id === null) {
+      await invoke("creer_noeud", {
+        niveau: noeudEdite.niveau,
+        parentId: config.parent()?.id ?? null,
+        nom,
+      });
+    } else {
+      await invoke("renommer_noeud", {
+        niveau: noeudEdite.niveau,
+        id: noeudEdite.id,
+        nom,
+      });
+    }
+    fermerNom();
+    effacerErreur();
+    await rechargerHierarchie();
+  } catch (erreur) {
+    $("nom-note").textContent = String(erreur);
+  }
+}
+
+async function supprimerNoeud(niveau, bouton) {
+  const courant = NOEUDS[niveau].courant();
+  if (!courant) {
+    afficherErreur(`Sélectionnez d'abord ${NOEUDS[niveau].libelle} à supprimer.`);
+    return;
+  }
+  if (!suppressionsArmees.has(niveau)) {
+    suppressionsArmees.add(niveau);
+    bouton.textContent = "✕ ?";
+    bouton.classList.add("arme");
+    return;
+  }
+
+  suppressionsArmees.delete(niveau);
+  bouton.textContent = "✕";
+  bouton.classList.remove("arme");
+  try {
+    await invoke("supprimer_noeud", { niveau, id: courant.id });
+    effacerErreur();
+    await rechargerHierarchie();
+  } catch (erreur) {
+    afficherErreur(String(erreur));
+  }
+}
+
+$("fermer-nom").addEventListener("click", fermerNom);
+$("annuler-nom").addEventListener("click", fermerNom);
+$("enregistrer-nom").addEventListener("click", () => {
+  enregistrerNom().catch((e) => afficherErreur(e));
+});
+
+for (const [niveau, suffixe] of [
+  ["clan", "clan"],
+  ["grande_famille", "gf"],
+  ["lignee", "lignee"],
+  ["famille", "famille"],
+]) {
+  $(`ajouter-${suffixe}`).addEventListener("click", () => {
+    ouvrirNom(niveau, true).catch((e) => afficherErreur(e));
+  });
+  $(`renommer-${suffixe}`).addEventListener("click", () => {
+    ouvrirNom(niveau, false).catch((e) => afficherErreur(e));
+  });
+  $(`supprimer-${suffixe}`).addEventListener("click", () => {
+    supprimerNoeud(niveau, $(`supprimer-${suffixe}`)).catch((e) =>
+      afficherErreur(e),
+    );
+  });
 }
 
 /* -------------------------------- membres ------------------------------ */

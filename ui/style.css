@@ -949,3 +949,42 @@ tbody tr.selection {
   font: inherit;
   resize: vertical;
 }
+
+/* ---------- outils de colonne (hiérarchie) ---------- */
+.colonne-tete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.colonne-outils {
+  display: flex;
+  gap: 4px;
+}
+
+.outil {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--bord);
+  border-radius: 6px;
+  background: var(--panneau-haut);
+  color: var(--texte-doux);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.outil:hover {
+  border-color: var(--bord-net);
+  color: var(--texte);
+}
+
+.outil.arme {
+  border-color: var(--rouge);
+  color: var(--rouge);
+}
+
+.feuille.petite {
+  max-width: 420px;
+}

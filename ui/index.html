@@ -31,19 +31,47 @@
 
     <main class="piste">
       <section class="colonne">
-        <h2>Clans</h2>
+        <div class="colonne-tete">
+          <h2>Clans</h2>
+          <div class="colonne-outils">
+            <button type="button" class="outil" id="ajouter-clan" title="Ajouter un clan">+</button>
+            <button type="button" class="outil" id="renommer-clan" title="Renommer le clan">✎</button>
+            <button type="button" class="outil" id="supprimer-clan" title="Supprimer le clan">✕</button>
+          </div>
+        </div>
         <div class="liste" id="liste-clans"></div>
       </section>
       <section class="colonne">
-        <h2>Grandes familles</h2>
+        <div class="colonne-tete">
+          <h2>Grandes familles</h2>
+          <div class="colonne-outils">
+            <button type="button" class="outil" id="ajouter-gf" title="Ajouter une grande famille">+</button>
+            <button type="button" class="outil" id="renommer-gf" title="Renommer la grande famille">✎</button>
+            <button type="button" class="outil" id="supprimer-gf" title="Supprimer la grande famille">✕</button>
+          </div>
+        </div>
         <div class="liste" id="liste-gf"></div>
       </section>
       <section class="colonne">
-        <h2>Lignées</h2>
+        <div class="colonne-tete">
+          <h2>Lignées</h2>
+          <div class="colonne-outils">
+            <button type="button" class="outil" id="ajouter-lignee" title="Ajouter une lignée">+</button>
+            <button type="button" class="outil" id="renommer-lignee" title="Renommer la lignée">✎</button>
+            <button type="button" class="outil" id="supprimer-lignee" title="Supprimer la lignée">✕</button>
+          </div>
+        </div>
         <div class="liste" id="liste-lignees"></div>
       </section>
       <section class="colonne">
-        <h2>Familles</h2>
+        <div class="colonne-tete">
+          <h2>Familles</h2>
+          <div class="colonne-outils">
+            <button type="button" class="outil" id="ajouter-famille" title="Ajouter une famille">+</button>
+            <button type="button" class="outil" id="renommer-famille" title="Renommer la famille">✎</button>
+            <button type="button" class="outil" id="supprimer-famille" title="Supprimer la famille">✕</button>
+          </div>
+        </div>
         <div class="liste" id="liste-familles"></div>
       </section>
     </main>
@@ -161,6 +189,29 @@
 
           <h4 class="fiche-section">Versements</h4>
           <div class="versements" id="fiche-versements"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="voile" id="voile-nom" hidden>
+      <div class="feuille petite" role="dialog" aria-modal="true" aria-labelledby="nom-titre">
+        <header class="feuille-entete">
+          <div>
+            <h3 id="nom-titre">Nouveau</h3>
+            <p class="fil" id="nom-contexte"></p>
+          </div>
+          <button type="button" class="fermer" id="fermer-nom" aria-label="Fermer">×</button>
+        </header>
+        <div class="feuille-corps">
+          <label class="champ">
+            <span>Nom *</span>
+            <input id="nom-champ" type="text" autocomplete="off" />
+          </label>
+          <p class="note" id="nom-note"></p>
+          <div class="actions">
+            <button type="button" class="secondaire" id="annuler-nom">Annuler</button>
+            <button type="button" class="primaire" id="enregistrer-nom">Enregistrer</button>
+          </div>
         </div>
       </div>
     </div>

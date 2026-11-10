@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 
 use chrono::{Datelike, NaiveDate};
-use fonds_core::{db, erreur::Erreur, membres, ventilation};
+use fonds_core::{db, erreur::Erreur, membres, noeuds, ventilation};
 use rusqlite::{params, Connection};
 
 struct Base {
@@ -876,4 +876,59 @@ fn la_suppression_protege_descendants_et_versements() {
         membres::edition(&con, enfant),
         Err(Erreur::MembreInconnu(_))
     ));
+}
+
+// ------------------------------------------------------------------
+// 10. Hiérarchie : créer, renommer, supprimer sans casser la chaîne.
+// ------------------------------------------------------------------
+#[test]
+fn la_hierarchie_se_cree_se_renomme_et_se_protege() {
+    let b = base();
+    let mut con = ouvrir(&b);
+
+    let clan = noeuds::creer(&mut con, noeuds::Niveau::Clan, None, "ZZCLAN").expect("clan");
+    let gf = noeuds::creer(&mut con, noeuds::Niveau::GrandeFamille, Some(clan), "ZZGF")
+        .expect("grande famille");
+    let lignee =
+        noeuds::creer(&mut con, noeuds::Niveau::Lignee, Some(gf), "ZZLIGNEE").expect("lignée");
+    let famille = noeuds::creer(&mut con, noeuds::Niveau::Famille, Some(lignee), "ZZFAMILLE")
+        .expect("famille");
+
+    // Doublon chez le même parent refusé (sans tenir compte de la casse),
+    // et parent obligatoire pour un niveau qui en dépend.
+    assert!(matches!(
+        noeuds::creer(&mut con, noeuds::Niveau::Clan, None, "zzclan"),
+        Err(Erreur::NomDejaPris(_))
+    ));
+    assert!(matches!(
+        noeuds::creer(&mut con, noeuds::Niveau::Famille, None, "ZZORPHELINE"),
+        Err(Erreur::ChampRequis(_))
+    ));
+
+    noeuds::renommer(&mut con, noeuds::Niveau::Clan, clan, "ZZCLAN2").expect("renommage");
+    let nom: String = con
+        .query_row("SELECT nom FROM clans WHERE id = ?1", params![clan], |l| {
+            l.get(0)
+        })
+        .unwrap();
+    assert_eq!(nom, "ZZCLAN2");
+
+    // Une famille habitée ne se supprime pas, un clan peuplé non plus.
+    let habitant = membres::enregistrer(&mut con, &fiche(famille, "ZZHABITANT"))
+        .expect("membre dans la famille");
+    assert!(matches!(
+        noeuds::supprimer(&mut con, noeuds::Niveau::Famille, famille),
+        Err(Erreur::SuppressionRefusee(_))
+    ));
+    assert!(matches!(
+        noeuds::supprimer(&mut con, noeuds::Niveau::Clan, clan),
+        Err(Erreur::SuppressionRefusee(_))
+    ));
+
+    // Vide, la chaîne se supprime du bas vers le haut.
+    membres::supprimer(&mut con, habitant).expect("membre retiré");
+    noeuds::supprimer(&mut con, noeuds::Niveau::Famille, famille).expect("famille");
+    noeuds::supprimer(&mut con, noeuds::Niveau::Lignee, lignee).expect("lignée");
+    noeuds::supprimer(&mut con, noeuds::Niveau::GrandeFamille, gf).expect("grande famille");
+    noeuds::supprimer(&mut con, noeuds::Niveau::Clan, clan).expect("clan");
 }

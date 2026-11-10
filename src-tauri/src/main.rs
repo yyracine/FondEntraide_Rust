@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use fonds_core::rusqlite::Connection;
-use fonds_core::{db, domaine, hierarchie, membres, ventilation};
+use fonds_core::{db, domaine, hierarchie, membres, noeuds, ventilation};
 
 /// État partagé : une connexion, ou l'erreur qui empêche de l'ouvrir (affichée
 /// dans l'interface plutôt que de faire tomber la fenêtre).
@@ -258,6 +258,50 @@ fn supprimer_membre(etat: tauri::State<Etat>, membre_id: i64) -> Result<(), Stri
     membres::supprimer(&mut con, membre_id).map_err(|e| e.to_string())
 }
 
+/// Écriture de la hiérarchie : créer, renommer, supprimer un clan, une grande
+/// famille, une lignée ou une famille. Le niveau voyage en clair (`clan`,
+/// `grande_famille`, `lignee`, `famille`) et n'est jamais interprété en SQL.
+#[tauri::command]
+fn creer_noeud(
+    etat: tauri::State<Etat>,
+    niveau: noeuds::Niveau,
+    parent_id: Option<i64>,
+    nom: String,
+) -> Result<i64, String> {
+    let verrou = etat.base.as_ref().map_err(|e| e.clone())?;
+    let mut con = verrou
+        .lock()
+        .map_err(|_| "verrou de base empoisonné".to_string())?;
+    noeuds::creer(&mut con, niveau, parent_id, &nom).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn renommer_noeud(
+    etat: tauri::State<Etat>,
+    niveau: noeuds::Niveau,
+    id: i64,
+    nom: String,
+) -> Result<(), String> {
+    let verrou = etat.base.as_ref().map_err(|e| e.clone())?;
+    let mut con = verrou
+        .lock()
+        .map_err(|_| "verrou de base empoisonné".to_string())?;
+    noeuds::renommer(&mut con, niveau, id, &nom).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn supprimer_noeud(
+    etat: tauri::State<Etat>,
+    niveau: noeuds::Niveau,
+    id: i64,
+) -> Result<(), String> {
+    let verrou = etat.base.as_ref().map_err(|e| e.clone())?;
+    let mut con = verrou
+        .lock()
+        .map_err(|_| "verrou de base empoisonné".to_string())?;
+    noeuds::supprimer(&mut con, niveau, id).map_err(|e| e.to_string())
+}
+
 fn main() {
     let etat = Etat::ouvrir();
 
@@ -277,6 +321,9 @@ fn main() {
             parents_candidats,
             enregistrer_membre,
             supprimer_membre,
+            creer_noeud,
+            renommer_noeud,
+            supprimer_noeud,
             clans,
             grandes_familles,
             lignees,

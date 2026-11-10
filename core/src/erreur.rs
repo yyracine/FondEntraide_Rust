@@ -52,6 +52,12 @@ pub enum Erreur {
     #[error("suppression impossible : {0}")]
     SuppressionRefusee(String),
 
+    #[error("{0} inconnu : {1}")]
+    NoeudInconnu(&'static str, i64),
+
+    #[error("un nœud de ce nom existe déjà : {0}")]
+    NomDejaPris(String),
+
     #[error(
         "paiement incohérent après écriture : montant total différent de la somme des affectations"
     )]

@@ -197,6 +197,9 @@ const reponses = {
     },
   ],
   // Réponse réelle de la commande : serde la sérialise en camelCase.
+  creer_noeud: 999,
+  renommer_noeud: null,
+  supprimer_noeud: null,
   membre_edition: {
     id: 180,
     familleId: 180,
@@ -657,6 +660,61 @@ await attendre();
 
 assert.equal(dernierAppel("supprimer_membre")?.args.membreId, 180);
 assert.equal($("voile-membre").hidden, true);
+
+// 11. hiérarchie : créer, renommer et supprimer un nœud.
+$("ajouter-clan").click();
+await attendre();
+
+assert.equal($("voile-nom").hidden, false, "le formulaire de nom s'ouvre");
+assert.equal($("nom-titre").textContent, "Nouveau clan");
+
+$("nom-champ").value = "NOUVEAU CLAN";
+$("enregistrer-nom").click();
+await attendre();
+
+const creationNoeud = dernierAppel("creer_noeud");
+assert.equal(creationNoeud?.args.niveau, "clan");
+
+const apresCreation = appels.findIndex((a) => a.commande === "creer_noeud");
+assert.ok(
+  appels.slice(apresCreation).some((a) => a.commande === "resume"),
+  "les compteurs sont relus après une création",
+);
+assert.equal(creationNoeud?.args.nom, "NOUVEAU CLAN");
+assert.equal(creationNoeud?.args.parentId, null, "un clan n'a pas de parent");
+assert.equal($("voile-nom").hidden, true);
+
+// Renommer la famille sélectionnée : le nom courant est prérempli.
+$("renommer-famille").click();
+await attendre();
+assert.equal($("voile-nom").hidden, false);
+assert.equal($("nom-champ").value, "Akesse Comoé");
+
+$("nom-champ").value = "Akesse Comoé 2";
+$("enregistrer-nom").click();
+await attendre();
+
+const renommage = dernierAppel("renommer_noeud");
+assert.equal(renommage?.args.niveau, "famille");
+assert.equal(renommage?.args.id, 180);
+assert.equal(renommage?.args.nom, "Akesse Comoé 2");
+
+// Suppression en deux temps sur le bouton de colonne.
+$("supprimer-clan").click();
+assert.equal(dernierAppel("supprimer_noeud"), undefined, "un clic n'efface rien");
+assert.equal($("supprimer-clan").textContent, "✕ ?");
+
+$("supprimer-clan").click();
+await attendre();
+assert.equal(dernierAppel("supprimer_noeud")?.args.niveau, "clan");
+assert.equal(dernierAppel("supprimer_noeud")?.args.id, 2);
+
+const indexSuppression = appels.findLastIndex((a) => a.commande === "supprimer_noeud");
+assert.ok(
+  appels.slice(indexSuppression + 1).some((a) => a.commande === "resume"),
+  "les compteurs sont relus après une suppression",
+);
+assert.equal($("supprimer-clan").textContent, "✕");
 
 // 9. aucun handler n'a levé
 assert.deepEqual(
