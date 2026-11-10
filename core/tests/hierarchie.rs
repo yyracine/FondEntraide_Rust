@@ -269,3 +269,73 @@ fn les_familles_annoncent_leur_nombre_de_membres() {
     let peuplee = liste.iter().find(|f| f.id == famille).unwrap();
     assert_eq!(peuplee.membres, 1);
 }
+
+/// Encaisser doit pouvoir se faire par le nom seul : la recherche globale
+/// retrouve un membre sans connaître son clan, sa lignée ni sa famille, et
+/// l'isole exactement quand on demande son identifiant.
+#[test]
+fn la_recherche_globale_trouve_un_membre_sans_navigation() {
+    let (_dir, con) = base();
+
+    let famille = con
+        .query_row(
+            "SELECT id FROM familles WHERE id IN (SELECT famille_id FROM membres)
+              ORDER BY id LIMIT 1",
+            [],
+            |l| l.get::<_, i64>(0),
+        )
+        .unwrap();
+    let reference = hierarchie::membres(&con, famille, None, None, None)
+        .unwrap()
+        .into_iter()
+        .next()
+        .expect("famille peuplée");
+
+    let trouves =
+        hierarchie::rechercher_membres(&con, None, Some(&reference.nom), None, None, 50).unwrap();
+    let trouve = trouves
+        .iter()
+        .find(|t| t.membre.id == reference.id)
+        .expect("le membre doit être retrouvé par son nom");
+    assert!(
+        trouve.chemin.split('›').count() >= 2,
+        "le chemin doit situer le membre : {}",
+        trouve.chemin
+    );
+    assert!(
+        trouve.chemin.to_lowercase().contains("›"),
+        "séparateur attendu : {}",
+        trouve.chemin
+    );
+    assert_eq!(
+        (trouve.membre.du, trouve.membre.paye),
+        (reference.du, reference.paye),
+        "la recherche ramène les mêmes soldes que la navigation"
+    );
+
+    // L'identifiant isole un seul membre (rafraîchissement après versement).
+    let seul = hierarchie::membre(&con, reference.id, None, None)
+        .unwrap()
+        .expect("membre connu");
+    assert_eq!(seul.id, reference.id);
+
+    // Recherche insensible à la casse, limitée en nombre.
+    let minuscules = hierarchie::rechercher_membres(
+        &con,
+        None,
+        Some(&reference.nom.to_uppercase()),
+        None,
+        None,
+        3,
+    )
+    .unwrap();
+    assert!(minuscules.len() <= 3, "la limite est respectée");
+    assert!(!minuscules.is_empty(), "la casse ne doit pas gêner");
+
+    // Un nom absent ne ramène rien.
+    assert!(
+        hierarchie::rechercher_membres(&con, None, Some("ZZINTROUVABLE"), None, None, 25)
+            .unwrap()
+            .is_empty()
+    );
+}

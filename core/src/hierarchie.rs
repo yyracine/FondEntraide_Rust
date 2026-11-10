@@ -272,3 +272,123 @@ pub fn membres(
     }
     Ok(resultat)
 }
+
+/// Membre retrouvé hors navigation, avec son chemin dans la hiérarchie : deux
+/// homonymes se distinguent par leur famille, pas par un identifiant nu.
+#[derive(Debug, Clone, Serialize)]
+pub struct MembreTrouve {
+    #[serde(flatten)]
+    pub membre: MembreResume,
+    pub chemin: String,
+}
+
+/// « clan › lignée › famille », en fusionnant deux niveaux consécutifs qui
+/// portent le même nom (une GF et sa lignée homonymes, par exemple).
+fn chemin(clan: &str, grande_famille: &str, lignee: &str, famille: &str) -> String {
+    let mut noms: Vec<&str> = Vec::new();
+    for nom in [clan, grande_famille, lignee, famille] {
+        if noms.last().copied() != Some(nom) {
+            noms.push(nom);
+        }
+    }
+    noms.join(" › ")
+}
+
+/// Recherche par nom ou prénom **dans toute la base**, sans passer par
+/// clan → grande famille → lignée → famille. Sert à encaisser un versement
+/// pour quelqu'un qu'on identifie par son nom.
+///
+/// `membre_id` restreint à un membre précis (rafraîchissement après un
+/// versement), `limite` borne le nombre de résultats affichés.
+pub fn rechercher_membres(
+    con: &Connection,
+    membre_id: Option<i64>,
+    recherche: Option<&str>,
+    exercice_id: Option<i64>,
+    date_reference: Option<&str>,
+    limite: i64,
+) -> Result<Vec<MembreTrouve>, Erreur> {
+    let mut stmt = con.prepare(
+        "SELECT m.id, m.nom, m.prenom, m.statut, m.ordre_fratrie,
+                NULLIF(TRIM(IFNULL(pa.nom, '') || ' ' || IFNULL(pa.prenom, '')), '') AS parent,
+                IFNULL(s.du, 0), IFNULL(s.paye, 0), IFNULL(s.reste, 0), IFNULL(s.arrieres, 0),
+                c.nom AS clan, gf.nom AS grande_famille, l.nom AS lignee, f.nom AS famille
+           FROM membres m
+           JOIN familles f          ON f.id = m.famille_id
+           JOIN lignees l           ON l.id = f.lignee_id
+           JOIN grandes_familles gf ON gf.id = l.grande_famille_id
+           JOIN clans c             ON c.id = gf.clan_id
+           LEFT JOIN membres pa     ON pa.id = m.parent_id
+           LEFT JOIN (
+                 SELECT membre_id,
+                        SUM(montant_du) AS du,
+                        SUM(paye)       AS paye,
+                        SUM(reste)      AS reste,
+                        SUM(CASE
+                              WHEN date(date_echeance)
+                                   <= IFNULL(?4, date('now', 'localtime'))
+                               AND reste > 0
+                              THEN reste ELSE 0
+                            END) AS arrieres
+                   FROM v_echeance_membre
+                  WHERE (?3 IS NULL OR exercice_id = ?3)
+                  GROUP BY membre_id
+                ) s ON s.membre_id = m.id
+          WHERE (?1 IS NULL OR m.id = ?1)
+            AND (
+                 ?2 IS NULL
+                 OR m.nom LIKE '%' || ?2 || '%' COLLATE NOCASE
+                 OR IFNULL(m.prenom, '') LIKE '%' || ?2 || '%' COLLATE NOCASE
+                )
+          ORDER BY m.nom COLLATE NOCASE, m.prenom COLLATE NOCASE, m.id
+          LIMIT ?5",
+    )?;
+
+    let lignes = stmt.query_map(
+        params![membre_id, recherche, exercice_id, date_reference, limite],
+        |l| {
+            let clan: String = l.get(10)?;
+            let grande_famille: String = l.get(11)?;
+            let lignee: String = l.get(12)?;
+            let famille: String = l.get(13)?;
+            Ok(MembreTrouve {
+                membre: MembreResume {
+                    id: l.get(0)?,
+                    nom: l.get(1)?,
+                    prenom: l.get(2)?,
+                    statut: l.get(3)?,
+                    ordre_fratrie: l.get(4)?,
+                    parent: l.get(5)?,
+                    du: l.get(6)?,
+                    paye: l.get(7)?,
+                    reste: l.get(8)?,
+                    arrieres: l.get(9)?,
+                },
+                chemin: chemin(&clan, &grande_famille, &lignee, &famille),
+            })
+        },
+    )?;
+
+    let mut resultat = Vec::new();
+    for ligne in lignes {
+        resultat.push(ligne?);
+    }
+    Ok(resultat)
+}
+
+/// Soldes d'un membre précis : la feuille s'en sert pour se remettre à jour
+/// après un versement, même si le membre a été trouvé par la recherche et non
+/// dans le tableau d'une famille.
+pub fn membre(
+    con: &Connection,
+    membre_id: i64,
+    exercice_id: Option<i64>,
+    date_reference: Option<&str>,
+) -> Result<Option<MembreResume>, Erreur> {
+    Ok(
+        rechercher_membres(con, Some(membre_id), None, exercice_id, date_reference, 1)?
+            .into_iter()
+            .next()
+            .map(|trouve| trouve.membre),
+    )
+}

@@ -17,6 +17,15 @@
           <p class="sous-titre">Registre des cotisations familiales</p>
         </div>
       </div>
+      <div class="recherche-globale">
+        <input
+          id="recherche-membre"
+          type="search"
+          placeholder="Encaisser pour un membre : nom ou prénom…"
+          autocomplete="off"
+        />
+        <div class="resultats" id="resultats-membres" hidden></div>
+      </div>
       <div class="compteurs" id="compteurs"></div>
     </header>
 
@@ -71,6 +80,56 @@
       </div>
       <p class="compte" id="compte-membres"></p>
     </section>
+
+    <div class="voile" id="voile" hidden>
+      <div class="feuille" role="dialog" aria-modal="true" aria-labelledby="feuille-titre">
+        <header class="feuille-entete">
+          <div>
+            <h3 id="feuille-titre">Encaisser</h3>
+            <p class="fil" id="feuille-perimetre"></p>
+            <p class="fil" id="feuille-chemin"></p>
+          </div>
+          <button type="button" class="fermer" id="fermer-feuille" aria-label="Fermer">×</button>
+        </header>
+
+        <div class="feuille-corps">
+          <div class="annees" id="annees-feuille"></div>
+
+          <div class="soldes" id="feuille-soldes"></div>
+
+          <div class="champs">
+            <label class="champ">
+              <span>Montant (FCFA)</span>
+              <input id="montant" type="number" min="1" step="1" inputmode="numeric" />
+            </label>
+            <label class="champ">
+              <span>Date du versement</span>
+              <input id="date-paiement" type="date" />
+            </label>
+            <label class="champ">
+              <span>Mode</span>
+              <select id="mode">
+                <option value="especes">Espèces</option>
+                <option value="mobile_money">Mobile money</option>
+                <option value="virement">Virement</option>
+                <option value="cheque">Chèque</option>
+                <option value="autre">Autre</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="repartition" id="repartition" hidden></div>
+
+          <p class="note" id="note"></p>
+
+          <div class="actions">
+            <button type="button" class="primaire" id="encaisser">Enregistrer le versement</button>
+          </div>
+
+          <div class="recu" id="recu" hidden></div>
+        </div>
+      </div>
+    </div>
 
     <script src="app.js"></script>
   </body>

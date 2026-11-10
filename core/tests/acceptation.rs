@@ -444,3 +444,61 @@ fn autodiagnostic_ne_signale_que_les_depassements_historiques() {
     assert_eq!(alertes.len(), 1, "alertes inattendues : {alertes:?}");
     assert!(alertes[0].contains("au-delà du dû"), "{alertes:?}");
 }
+
+/// La répartition prévisionnelle annonce ce que le versement couvrirait, sans
+/// écrire une seule ligne : c'est ce que la feuille affiche pendant la frappe.
+#[test]
+fn le_plan_annonce_les_mois_et_le_reliquat_sans_ecrire() {
+    let b = base();
+    let con = ouvrir(&b);
+    let membre = creer_membre(
+        &con,
+        premiere_famille(&con),
+        "Plan",
+        Some("2027-01-01"),
+        None,
+    );
+    // 2027 : les exercices 2024 à 2026 existent déjà dans la base, et leurs
+    // bornes sont uniques.
+    let exercice = creer_exercice(
+        &con,
+        "Plan 2027",
+        jour(2027, 1, 1),
+        jour(2027, 12, 31),
+        1_000,
+    )
+    .expect("exercice de test");
+
+    // Au 15 juillet 2027, sept mois sont échus : janvier → juillet.
+    let date = jour(2027, 7, 15);
+    let plan = ventilation::plan_ventilation(&con, membre, exercice, 5_500, date).unwrap();
+    assert_eq!(
+        plan.affectations.len(),
+        6,
+        "janvier à mai pleins, puis 500 F sur juin"
+    );
+    assert_eq!(plan.affectations[0].mois, 1);
+    assert_eq!(plan.affectations[5].mois, 6);
+    assert_eq!(plan.affectations[5].montant, 500);
+    assert_eq!(plan.ventile, 5_500);
+    assert_eq!(plan.reliquat, 0);
+
+    // 9 000 F pour 7 000 F dus : 2 000 F resteraient sans imputation.
+    let trop = ventilation::plan_ventilation(&con, membre, exercice, 9_000, date).unwrap();
+    assert_eq!(trop.ventile, 7_000);
+    assert_eq!(trop.reliquat, 2_000);
+
+    // Rien n'a été écrit.
+    let paiements: i64 = con
+        .query_row(
+            "SELECT COUNT(*) FROM paiements WHERE membre_id = ?1",
+            params![membre],
+            |l| l.get(0),
+        )
+        .unwrap();
+    assert_eq!(paiements, 0, "le plan n'écrit aucun paiement");
+
+    // Aucun mois échu : le cœur refuse de planifier.
+    let rien = ventilation::plan_ventilation(&con, membre, exercice, 1_000, jour(2026, 12, 31));
+    assert!(matches!(rien, Err(Erreur::AucuneEcheance)));
+}

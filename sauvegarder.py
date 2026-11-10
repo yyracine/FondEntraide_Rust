@@ -1,7 +1,7 @@
 """Sauvegarde datée et vérifiée de la base de référence du Fonds d'Entraide.
 
-    python sauvegarder.py                  # cotisations.db
-    python sauvegarder.py familles.db      # une autre base, en plus
+    python sauvegarder.py                  # cotisations_v2.db (base écrite par l'app)
+    python sauvegarder.py cotisations.db   # la base v1 d'origine, en plus
 
 La copie passe par l'API `backup` de SQLite, pas par `copy` : elle reste
 cohérente même si une autre connexion écrit pendant l'opération. La source est
@@ -30,7 +30,9 @@ from pathlib import Path
 
 RACINE = Path(__file__).resolve().parent
 DOSSIER = RACINE / "sauvegardes"
-DEFAUT = "cotisations.db"
+# La base que l'application Rust écrit réellement. Sauvegarder `cotisations.db`
+# par défaut produirait une copie d'une base que plus personne ne met à jour.
+DEFAUT = "cotisations_v2.db"
 
 
 def empreinte(chemin: Path) -> str:

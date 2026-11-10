@@ -1,7 +1,7 @@
 use chrono::{Datelike, NaiveDate};
 use rusqlite::{params, Connection};
 
-use crate::domaine::{EcheanceImpayee, Paiement, Solde, Ventilation};
+use crate::domaine::{EcheanceImpayee, Paiement, PlanVentilation, Solde, Ventilation};
 use crate::erreur::Erreur;
 use crate::recus;
 
@@ -91,6 +91,80 @@ pub fn solde(con: &Connection, membre_id: i64, exercice_id: i64) -> Result<Optio
     }
 }
 
+/// Variante de [`ventiler`] qui reçoit la date en ISO (`AAAA-MM-JJ`), pour
+/// que la coquille Tauri n'ait pas à manipuler `chrono`.
+pub fn ventiler_iso(
+    con: &mut Connection,
+    membre_id: i64,
+    exercice_id: i64,
+    total: i64,
+    date_paiement: &str,
+    mode: &str,
+) -> Result<Paiement, Erreur> {
+    let date = NaiveDate::parse_from_str(date_paiement, "%Y-%m-%d")
+        .map_err(|_| Erreur::DateInvalide(date_paiement.to_string()))?;
+    ventiler(con, membre_id, exercice_id, total, date, mode)
+}
+
+/// Cascade : chaque franc va au mois échu le plus ancien encore impayé.
+///
+/// Ne touche à rien : sert à montrer à l'utilisateur, avant validation, quels
+/// mois et quelles années son versement va couvrir, et quelle part dépasserait
+/// le dû (au lieu de le lui refuser après coup).
+pub fn plan_ventilation(
+    con: &Connection,
+    membre_id: i64,
+    exercice_id: i64,
+    total: i64,
+    date_paiement: NaiveDate,
+) -> Result<PlanVentilation, Erreur> {
+    if total <= 0 {
+        return Err(Erreur::MontantInvalide(total));
+    }
+
+    let impayees = echeances_impayees(con, membre_id, exercice_id, date_paiement)?;
+    if impayees.is_empty() {
+        return Err(Erreur::AucuneEcheance);
+    }
+
+    let mut reste = total;
+    let mut affectations: Vec<Ventilation> = Vec::new();
+    for echeance in &impayees {
+        if reste == 0 {
+            break;
+        }
+        let part = echeance.reste.min(reste);
+        if part > 0 {
+            affectations.push(Ventilation {
+                echeance_id: echeance.echeance_id,
+                annee: echeance.annee,
+                mois: echeance.mois,
+                montant: part,
+            });
+            reste -= part;
+        }
+    }
+
+    Ok(PlanVentilation {
+        ventile: total - reste,
+        reliquat: reste,
+        affectations,
+    })
+}
+
+/// Variante de [`plan_ventilation`] qui reçoit la date en ISO (`AAAA-MM-JJ`).
+pub fn plan_ventilation_iso(
+    con: &Connection,
+    membre_id: i64,
+    exercice_id: i64,
+    total: i64,
+    date_paiement: &str,
+) -> Result<PlanVentilation, Erreur> {
+    let date = NaiveDate::parse_from_str(date_paiement, "%Y-%m-%d")
+        .map_err(|_| Erreur::DateInvalide(date_paiement.to_string()))?;
+    plan_ventilation(con, membre_id, exercice_id, total, date)
+}
+
 /// Enregistre un versement : ventilation en cascade, écriture du paiement,
 /// numéro de reçu et contrôle d'incohérence, **dans une seule transaction**.
 ///
@@ -129,30 +203,9 @@ pub fn ventiler(
         return Err(Erreur::ExerciceInconnu(exercice_id));
     }
 
-    let impayees = echeances_impayees(&tx, membre_id, exercice_id, date_paiement)?;
-    if impayees.is_empty() {
-        return Err(Erreur::AucuneEcheance);
-    }
-
-    let mut reste = total;
-    let mut plan: Vec<Ventilation> = Vec::new();
-    for echeance in &impayees {
-        if reste == 0 {
-            break;
-        }
-        let part = echeance.reste.min(reste);
-        if part > 0 {
-            plan.push(Ventilation {
-                echeance_id: echeance.echeance_id,
-                annee: echeance.annee,
-                mois: echeance.mois,
-                montant: part,
-            });
-            reste -= part;
-        }
-    }
-    if reste > 0 {
-        return Err(Erreur::Reliquat(total, reste));
+    let plan = plan_ventilation(&tx, membre_id, exercice_id, total, date_paiement)?;
+    if plan.reliquat > 0 {
+        return Err(Erreur::Reliquat(total, plan.reliquat));
     }
 
     tx.execute(
@@ -168,7 +221,7 @@ pub fn ventiler(
         params![numero, paiement_id],
     )?;
 
-    for part in &plan {
+    for part in &plan.affectations {
         tx.execute(
             "INSERT INTO affectations (paiement_id, echeance_id, montant)
              VALUES (?1, ?2, ?3)",
@@ -190,6 +243,6 @@ pub fn ventiler(
         id: paiement_id,
         numero_recu: numero,
         montant_total: total,
-        affectations: plan,
+        affectations: plan.affectations,
     })
 }

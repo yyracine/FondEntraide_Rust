@@ -1,7 +1,8 @@
 use chrono::NaiveDate;
+use serde::Serialize;
 
 /// Part d'un versement affectée à une échéance précise.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Ventilation {
     pub echeance_id: i64,
     pub annee: i32,
@@ -10,12 +11,23 @@ pub struct Ventilation {
 }
 
 /// Versement enregistré : un reçu, une date, une ventilation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Paiement {
     pub id: i64,
     pub numero_recu: String,
     pub montant_total: i64,
     pub affectations: Vec<Ventilation>,
+}
+
+/// Répartition **prévisionnelle** d'un versement : ce que les échéances échues
+/// absorberaient, et la part qui resterait sans imputation. Aucune écriture.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PlanVentilation {
+    pub affectations: Vec<Ventilation>,
+    /// Somme réellement imputée sur des mois échus.
+    pub ventile: i64,
+    /// Part du montant qu'aucun mois échu ne peut absorber.
+    pub reliquat: i64,
 }
 
 /// Solde d'un membre sur un exercice (lecture de `v_solde_membre_exercice`).

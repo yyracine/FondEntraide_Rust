@@ -85,9 +85,9 @@ class Element {
     this.ecouteurs.get(type).push(action);
   }
 
-  /** Déclenche un clic comme un utilisateur ; toute exception est retenue. */
-  click() {
-    for (const action of this.ecouteurs.get("click") ?? []) {
+  /** Déclenche un événement comme un utilisateur ; exception retenue. */
+  declencher(type) {
+    for (const action of this.ecouteurs.get(type) ?? []) {
       try {
         const resultat = action(this);
         if (resultat && typeof resultat.then === "function") {
@@ -97,6 +97,14 @@ class Element {
         erreurs.push(e);
       }
     }
+  }
+
+  click() {
+    this.declencher("click");
+  }
+
+  input() {
+    this.declencher("input");
   }
 
   correspond(selecteur) {
@@ -121,10 +129,24 @@ class Element {
 }
 
 const html = lire("ui", "index.html");
+const css = lire("ui", "style.css");
 const elements = new Map();
-for (const [, id] of html.matchAll(/id="([^"]+)"/g)) {
-  elements.set(id, new Element("div"));
+for (const [balise] of html.matchAll(/<[a-zA-Z][^>]*>/g)) {
+  const id = balise.match(/\bid="([^"]+)"/)?.[1];
+  if (!id) continue;
+  const element = new Element("div");
+  // L'état initial de `hidden` vient du vrai HTML, pas d'un défaut inventé.
+  element.hidden = /\shidden(\s|>|=)/.test(balise);
+  elements.set(id, element);
 }
+
+// Le CSS ne doit jamais écraser l'attribut `hidden` : c'est ce qui laissait le
+// voile affiché au démarrage, bloquant tous les clics (et la saisie du membre).
+assert.match(
+  css,
+  /\[hidden\]\s*\{[^}]*display:\s*none\s*!important/,
+  "style.css doit neutraliser [hidden]",
+);
 
 const document = {
   createElement: (balise) => new Element(balise),
@@ -135,6 +157,50 @@ const document = {
 const appels = [];
 const reponses = {
   resume: { clans: 7, familles: 391, membres: 599, encaisse: 1_807_000 },
+  previsualiser: {
+    ventile: 2_000,
+    reliquat: 3_000,
+    affectations: [
+      { echeance_id: 1, annee: 2026, mois: 1, montant: 1_000 },
+      { echeance_id: 2, annee: 2026, mois: 2, montant: 1_000 },
+    ],
+  },
+  enregistrer_paiement: {
+    id: 900,
+    numero_recu: "RECU-2026-000001",
+    montant_total: 2_000,
+    affectations: [
+      { echeance_id: 1, annee: 2026, mois: 1, montant: 1_000 },
+      { echeance_id: 2, annee: 2026, mois: 2, montant: 1_000 },
+    ],
+  },
+  rechercher_membres: [
+    {
+      id: 180,
+      nom: "Akesse",
+      prenom: "Comoé",
+      statut: "actif",
+      ordre_fratrie: null,
+      parent: null,
+      du: 12_000,
+      paye: 3_000,
+      reste: 9_000,
+      arrieres: 8_000,
+      chemin: "YAOCRE › Akesse Comoé",
+    },
+  ],
+  membre: {
+    id: 180,
+    nom: "Akesse",
+    prenom: "Comoé",
+    statut: "actif",
+    ordre_fratrie: null,
+    parent: null,
+    du: 12_000,
+    paye: 5_000,
+    reste: 7_000,
+    arrieres: 6_000,
+  },
   exercices: [
     { id: 1, libelle: "Campagne 2026", date_debut: "2026-01-01", date_fin: "2026-12-31", annee: 2026, statut: "ouverte", courant: true },
     { id: 2, libelle: "Campagne 2025", date_debut: "2025-01-01", date_fin: "2025-12-31", annee: 2025, statut: "fermee", courant: false },
@@ -194,6 +260,7 @@ const jetons = () => $("annees").children.map((c) => c.textContent);
 const actif = () => $("annees").children.find((c) => c.classList.contains("actif"))?.textContent;
 const dernierAppel = (commande) => appels.filter((a) => a.commande === commande).pop();
 
+assert.equal($("voile").hidden, true, "la feuille est fermée au démarrage");
 assert.equal($("liste-clans").children.length, 1, "un clan affiché");
 assert.deepEqual(jetons(), ["Tous", "2026", "2025", "2024"], "quatre puces d'exercice");
 assert.equal(actif(), "2026", "l'exercice courant est sélectionné par défaut");
@@ -243,7 +310,133 @@ assert.equal($("th-paye").textContent, "Payé");
 assert.equal(dernierAppel("membres")?.args.exerciceId, null, "aucun filtre d'exercice");
 assert.match($("compte-membres").textContent, /Tous exercices/);
 
-// 4. aucun handler n'a levé
+// 4. encaissement : la feuille s'ouvre au clic sur une ligne, le versement
+//    part sur l'exercice courant et le reçu s'affiche.
+$("corps-membres").children[0].click();
+await attendre();
+
+assert.equal($("voile").hidden, false, "la feuille de cotisation s'ouvre");
+assert.equal($("feuille-titre").textContent, "Akesse Comoé");
+assert.match($("feuille-perimetre").textContent, /Exercice 2026/);
+assert.equal($("montant").value, "", "champ montant vide à l'ouverture");
+assert.match($("date-paiement").value, /^\d{4}-\d{2}-\d{2}$/, "date préremplie");
+
+// Le sélecteur d'année de la feuille : le versement ne dépend plus de l'année
+// choisie dans le tableau.
+assert.equal($("annees-feuille").children.length, 3, "une puce par exercice");
+assert.equal(
+  $("annees-feuille").children.find((c) => c.classList.contains("actif"))?.textContent,
+  "2026",
+  "l'exercice courant est proposé par défaut",
+);
+
+$("annees-feuille").children[2].click(); // 2024
+await attendre();
+assert.match($("feuille-perimetre").textContent, /Exercice 2024/);
+assert.equal(dernierAppel("membre")?.args.exerciceId, 3, "soldes relus sur 2024");
+
+$("annees-feuille").children[0].click(); // retour à 2026
+await attendre();
+assert.match($("feuille-perimetre").textContent, /Exercice 2026/);
+assert.equal(dernierAppel("membre")?.args.exerciceId, 1);
+
+// La répartition suit la frappe : mois, année et part non imputable annoncés
+// avant validation.
+$("montant").value = "5000";
+$("montant").input();
+await attendre();
+
+const apercu = dernierAppel("previsualiser");
+assert.ok(apercu, "la répartition est demandée au cœur");
+assert.equal(apercu.args.montant, 5_000);
+assert.equal($("repartition").hidden, false, "la répartition s'affiche");
+assert.match($("repartition").textContent, /Imputé sur l'exercice 2026/);
+assert.match($("repartition").textContent, /janvier 2026/);
+assert.match($("repartition").textContent, /février 2026/);
+assert.ok(
+  $("repartition").textContent.includes(`${fcf(3_000)} ne peuvent pas être imputés`),
+  "le reliquat est annoncé avant validation",
+);
+
+$("montant").value = "2000";
+$("mode").value = "especes";
+$("encaisser").click();
+await attendre();
+
+const versement = dernierAppel("enregistrer_paiement");
+assert.ok(versement, "la commande d'écriture est appelée");
+assert.equal(versement.args.membreId, 180);
+assert.equal(versement.args.montant, 2_000);
+assert.equal(versement.args.mode, "especes");
+assert.match(versement.args.datePaiement, /^\d{4}-\d{2}-\d{2}$/);
+assert.equal(
+  versement.args.exerciceId,
+  1,
+  "en mode Tous, le paiement vise l'exercice courant",
+);
+
+assert.equal($("repartition").hidden, true, "la répartition laisse place au reçu");
+assert.equal($("recu").hidden, false, "le reçu s'affiche");
+
+// Le bouton ne doit pas rester armé sur un montant déjà encaissé : c'était la
+// cause du second enregistrement refusé par un « reliquat ».
+assert.equal($("encaisser").disabled, true, "bouton désarmé après enregistrement");
+assert.equal($("encaisser").textContent, "Versement enregistré");
+assert.equal($("montant").value, "", "le montant est vidé après enregistrement");
+
+// Une nouvelle saisie le réarme explicitement.
+$("montant").value = "1000";
+$("montant").input();
+await attendre();
+assert.equal($("encaisser").disabled, false, "le bouton se réarme sur une saisie");
+assert.equal($("encaisser").textContent, "Enregistrer le versement");
+assert.equal($("recu").hidden, true, "le reçu précédent s'efface");
+assert.match($("recu").textContent, /RECU-2026-000001/);
+assert.match($("recu").textContent, /janvier 2026/);
+assert.match($("recu").textContent, /février 2026/);
+assert.equal($("note").textContent, "");
+
+// 5. fermeture
+$("fermer-feuille").click();
+assert.equal($("voile").hidden, true, "la feuille se ferme");
+
+// 6. montant invalide : refus avant tout appel
+$("corps-membres").children[0].click();
+await attendre();
+const avant = appels.length;
+$("montant").value = "12.5";
+$("encaisser").click();
+await attendre();
+assert.equal(appels.length, avant, "aucun appel pour un montant non entier");
+assert.match($("note").textContent, /Montant invalide/);
+$("fermer-feuille").click();
+
+// 7. recherche globale : encaisser sans passer par les clans
+$("recherche-membre").value = "akesse";
+$("recherche-membre").input();
+await attendre(250);
+
+assert.equal($("resultats-membres").hidden, false, "les résultats s'affichent");
+assert.equal($("resultats-membres").children.length, 1);
+assert.match($("resultats-membres").textContent, /YAOCRE/);
+
+const recherche = dernierAppel("rechercher_membres");
+assert.ok(recherche, "la recherche globale interroge le cœur");
+assert.equal(recherche.args.recherche, "akesse");
+assert.equal(recherche.args.exerciceId, 1, "la recherche vise l'exercice courant");
+
+$("resultats-membres").children[0].click();
+await attendre();
+
+assert.equal($("voile").hidden, false, "la feuille s'ouvre depuis la recherche");
+assert.equal($("feuille-titre").textContent, "Akesse Comoé");
+assert.match($("feuille-chemin").textContent, /YAOCRE/);
+assert.equal($("resultats-membres").hidden, true, "la liste se referme");
+assert.equal($("recherche-membre").value, "", "le champ se vide après le choix");
+
+$("fermer-feuille").click();
+
+// 8. aucun handler n'a levé
 assert.deepEqual(
   erreurs.map((e) => String(e)),
   [],
@@ -253,4 +446,4 @@ assert.deepEqual(
 console.log("fumee UI : OK");
 console.log(`  ${appels.length} appels Tauri simulés`);
 console.log(`  puces : ${jetons().join(" · ")}`);
-console.log("  scénario : clan → descendue automatique → membres → 2024 → Tous");
+console.log("  scénario : clan → descendue → exercices → feuille → reçu → refus");

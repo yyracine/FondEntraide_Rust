@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use fonds_core::rusqlite::Connection;
-use fonds_core::{db, hierarchie};
+use fonds_core::{db, domaine, hierarchie, ventilation};
 
 /// État partagé : une connexion, ou l'erreur qui empêche de l'ouvrir (affichée
 /// dans l'interface plutôt que de faire tomber la fenêtre).
@@ -100,6 +100,72 @@ fn exercices(etat: tauri::State<Etat>) -> Result<Vec<hierarchie::Exercice>, Stri
     etat.avec(hierarchie::exercices)
 }
 
+/// Enregistre un versement : la ventilation, le numéro de reçu et le contrôle
+/// d'incohérence sont faits par `ventilation::ventiler_iso`, dans une seule
+/// transaction. Ici, on ne fait que tenir le verrou d'écriture.
+#[tauri::command]
+fn enregistrer_paiement(
+    etat: tauri::State<Etat>,
+    membre_id: i64,
+    exercice_id: i64,
+    montant: i64,
+    date_paiement: String,
+    mode: String,
+) -> Result<domaine::Paiement, String> {
+    let verrou = etat.base.as_ref().map_err(|e| e.clone())?;
+    let mut con = verrou
+        .lock()
+        .map_err(|_| "verrou de base empoisonné".to_string())?;
+    ventilation::ventiler_iso(
+        &mut con,
+        membre_id,
+        exercice_id,
+        montant,
+        &date_paiement,
+        &mode,
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// Répartition prévisionnelle : quels mois, quelles années, et quelle part
+/// resterait sans imputation. Lecture seule, appelée à chaque frappe.
+#[tauri::command]
+fn previsualiser(
+    etat: tauri::State<Etat>,
+    membre_id: i64,
+    exercice_id: i64,
+    montant: i64,
+    date_paiement: String,
+) -> Result<domaine::PlanVentilation, String> {
+    etat.avec(|con| {
+        ventilation::plan_ventilation_iso(con, membre_id, exercice_id, montant, &date_paiement)
+    })
+}
+
+/// Recherche par nom ou prénom dans toute la base : encaisser ne doit pas
+/// obliger à descendre clan → grande famille → lignée → famille.
+#[tauri::command]
+fn rechercher_membres(
+    etat: tauri::State<Etat>,
+    recherche: String,
+    exercice_id: Option<i64>,
+) -> Result<Vec<hierarchie::MembreTrouve>, String> {
+    etat.avec(|con| {
+        hierarchie::rechercher_membres(con, None, Some(recherche.as_str()), exercice_id, None, 25)
+    })
+}
+
+/// Soldes d'un membre précis, pour rafraîchir la feuille après un versement
+/// même quand le membre a été trouvé par la recherche.
+#[tauri::command]
+fn membre(
+    etat: tauri::State<Etat>,
+    membre_id: i64,
+    exercice_id: Option<i64>,
+) -> Result<Option<hierarchie::MembreResume>, String> {
+    etat.avec(|con| hierarchie::membre(con, membre_id, exercice_id, None))
+}
+
 #[tauri::command]
 fn membres(
     etat: tauri::State<Etat>,
@@ -127,6 +193,10 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             resume,
             exercices,
+            enregistrer_paiement,
+            previsualiser,
+            rechercher_membres,
+            membre,
             clans,
             grandes_familles,
             lignees,

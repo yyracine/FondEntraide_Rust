@@ -9,10 +9,33 @@ const etat = {
   exercice: null,
 };
 
+const MOIS = [
+  "janvier",
+  "février",
+  "mars",
+  "avril",
+  "mai",
+  "juin",
+  "juillet",
+  "août",
+  "septembre",
+  "octobre",
+  "novembre",
+  "décembre",
+];
+
 const nf = new Intl.NumberFormat("fr-FR");
 const $ = (id) => document.getElementById(id);
 const fcf = (montant) => `${nf.format(montant)} F`;
 const pluriel = (n, mot) => `${nf.format(n)} ${mot}${n > 1 ? "s" : ""}`;
+
+let ligneSelectionnee = null;
+let membreCourant = null;
+// Un versement vient d'être enregistré dans cette feuille : le bouton reste
+// désarmé tant que l'utilisateur n'a pas saisi un nouveau montant.
+let enregistre = false;
+// Exercice choisi dans la feuille, indépendant des puces du tableau.
+let exerciceFeuille = null;
 
 /* ------------------------------- erreurs ------------------------------- */
 function afficherErreur(texte) {
@@ -164,9 +187,7 @@ function nomExercice(exercice) {
 }
 
 function dessinerAnnees() {
-  const puces = [
-    puce("Tous", etat.exercice === null, () => choisirExercice(null)),
-  ];
+  const puces = [puce("Tous", etat.exercice === null, () => choisirExercice(null))];
   for (const exercice of etat.exercices) {
     puces.push(
       puce(nomExercice(exercice), etat.exercice?.id === exercice.id, () =>
@@ -296,6 +317,7 @@ async function choisirFamille(bouton, famille) {
 function afficherMembres(membres) {
   const corps = $("corps-membres");
   corps.replaceChildren();
+  ligneSelectionnee = null;
 
   if (membres.length === 0) {
     const tr = document.createElement("tr");
@@ -311,6 +333,7 @@ function afficherMembres(membres) {
 
   for (const membre of membres) {
     const tr = document.createElement("tr");
+    tr.className = "cliquable";
     tr.append(
       cellule(membre.nom),
       cellule(membre.prenom, membre.prenom ? "" : "doux"),
@@ -323,6 +346,7 @@ function afficherMembres(membres) {
       ),
       cellule(membre.parent, membre.parent ? "" : "doux"),
     );
+    tr.addEventListener("click", () => ouvrirFeuille(membre, tr));
     corps.append(tr);
   }
 
@@ -347,7 +371,7 @@ let minuterie = null;
 async function chargerMembres() {
   if (!etat.famille) {
     afficherMembres([]);
-    return;
+    return null;
   }
   const recherche = $("recherche").value.trim();
   const membres = await invoke("membres", {
@@ -356,6 +380,7 @@ async function chargerMembres() {
     exerciceId: etat.exercice ? etat.exercice.id : null,
   });
   afficherMembres(membres);
+  return membres;
 }
 
 $("recherche").addEventListener("input", () => {
@@ -363,6 +388,399 @@ $("recherche").addEventListener("input", () => {
   minuterie = setTimeout(() => {
     chargerMembres().catch((e) => afficherErreur(e));
   }, 150);
+});
+
+/* --------------------------- recherche globale -------------------------- */
+let minuterieGlobale = null;
+
+function effacerResultats() {
+  $("resultats-membres").hidden = true;
+  $("resultats-membres").replaceChildren();
+}
+
+/**
+ * Encaisser sans parcourir la hiérarchie : on tape un nom, on clique le bon
+ * membre (situé par son chemin) et la feuille s'ouvre directement.
+ */
+async function chercherMembre() {
+  const texte = $("recherche-membre").value.trim();
+  if (texte.length < 2) {
+    effacerResultats();
+    return;
+  }
+
+  const exercice = exercicePourPaiement();
+  const trouves = await invoke("rechercher_membres", {
+    recherche: texte,
+    exerciceId: exercice ? exercice.id : null,
+  });
+
+  const boite = $("resultats-membres");
+  boite.replaceChildren();
+  if (trouves.length === 0) {
+    const vide = document.createElement("p");
+    vide.className = "vide";
+    vide.textContent = "Aucun membre ne porte ce nom.";
+    boite.append(vide);
+  } else {
+    for (const trouve of trouves) {
+      const nom = trouve.prenom ? `${trouve.nom} ${trouve.prenom}` : trouve.nom;
+      boite.append(
+        ligne(nom, `${trouve.chemin} · reste ${fcf(trouve.reste)}`, () =>
+          choisirPourCotisation(trouve),
+        ),
+      );
+    }
+  }
+  boite.hidden = false;
+}
+
+function choisirPourCotisation(trouve) {
+  $("recherche-membre").value = "";
+  effacerResultats();
+  ouvrirFeuille(trouve, null);
+}
+
+$("recherche-membre").addEventListener("input", () => {
+  clearTimeout(minuterieGlobale);
+  minuterieGlobale = setTimeout(() => {
+    chercherMembre().catch((e) => afficherErreur(e));
+  }, 150);
+});
+
+/* ------------------------------ cotisation ----------------------------- */
+/** Année locale au format ISO, pour préremplir la date du versement. */
+function aujourdhui() {
+  const d = new Date();
+  const mois = String(d.getMonth() + 1).padStart(2, "0");
+  const jour = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mois}-${jour}`;
+}
+
+/**
+ * Un versement doit toujours viser un exercice : celui sélectionné dans les
+ * puces, sinon l'exercice en cours. En mode « Tous », on ne peut pas deviner
+ * l'année d'un encaissement, donc on retombe sur l'exercice courant.
+ */
+function exercicePourPaiement() {
+  if (etat.exercice) return etat.exercice;
+  return etat.exercices.find((e) => e.courant) ?? etat.exercices[0] ?? null;
+}
+
+/** L'exercice choisi **dans la feuille** prime sur celui du tableau. */
+function exerciceDuPaiement() {
+  return exerciceFeuille ?? exercicePourPaiement();
+}
+
+function dessinerAnneesFeuille() {
+  $("annees-feuille").replaceChildren(
+    ...etat.exercices.map((exercice) =>
+      puce(nomExercice(exercice), exerciceFeuille?.id === exercice.id, () =>
+        choisirExerciceFeuille(exercice),
+      ),
+    ),
+  );
+}
+
+function majPerimetre() {
+  const exercice = exerciceDuPaiement();
+  if (!membreCourant || !exercice) {
+    $("feuille-perimetre").textContent = "Aucun exercice disponible";
+    return;
+  }
+  $("feuille-perimetre").textContent =
+    `Exercice ${nomExercice(exercice)} · ` +
+    `${pluriel(membreCourant.du, "franc")} dus sur le périmètre`;
+}
+
+/**
+ * Changer d'année dans la feuille change le périmètre du versement : on relit
+ * les soldes de cet exercice au lieu de garder ceux de l'année précédente.
+ */
+async function choisirExerciceFeuille(exercice) {
+  if (!membreCourant || exerciceFeuille?.id === exercice.id) return;
+  exerciceFeuille = exercice;
+  dessinerAnneesFeuille();
+
+  enregistre = false;
+  $("montant").value = "";
+  $("recu").hidden = true;
+  $("recu").replaceChildren();
+  $("repartition").hidden = true;
+  $("repartition").replaceChildren();
+  armerBouton();
+
+  const aJour = await invoke("membre", {
+    membreId: membreCourant.id,
+    exerciceId: exercice.id,
+  });
+  if (aJour) {
+    membreCourant = { ...membreCourant, ...aJour };
+    majSoldes(membreCourant);
+  }
+  majPerimetre();
+  $("note").textContent =
+    membreCourant.reste > 0
+      ? "La ventilation suit l'ordre des mois échus : le plus ancien d'abord."
+      : "Ce membre est à jour sur cet exercice.";
+}
+
+function blocSolde(libelle, valeur, alerte) {
+  const boite = document.createElement("div");
+  boite.className = "solde";
+  const v = document.createElement("span");
+  v.className = alerte ? "solde-valeur alerte" : "solde-valeur";
+  v.textContent = fcf(valeur);
+  const l = document.createElement("span");
+  l.className = "solde-libelle";
+  l.textContent = libelle;
+  boite.append(v, l);
+  return boite;
+}
+
+/**
+ * Le bouton d'encaissement ne doit jamais rester armé sur un montant déjà
+ * enregistré : sans cela, un second clic renvoie un reliquat au lieu de
+ * proposer un nouveau versement.
+ */
+function armerBouton() {
+  const bouton = $("encaisser");
+  const montant = Number($("montant").value);
+  const saisi = Number.isInteger(montant) && montant > 0;
+  bouton.disabled = enregistre && !saisi;
+  bouton.textContent =
+    enregistre && !saisi ? "Versement enregistré" : "Enregistrer le versement";
+}
+
+function majSoldes(membre) {
+  $("feuille-soldes").replaceChildren(
+    blocSolde("Payé", membre.paye, false),
+    blocSolde("Reste", membre.reste, false),
+    blocSolde("Arriérés", membre.arrieres, membre.arrieres > 0),
+  );
+}
+
+function ouvrirFeuille(membre, ligneTableau) {
+  membreCourant = membre;
+
+  if (ligneSelectionnee) ligneSelectionnee.classList.remove("selection");
+  // Une feuille ouverte depuis la recherche n'a pas de ligne de tableau.
+  ligneSelectionnee = ligneTableau ?? null;
+  ligneTableau?.classList.add("selection");
+
+  exerciceFeuille = exercicePourPaiement();
+  dessinerAnneesFeuille();
+
+  const nom = membre.prenom ? `${membre.nom} ${membre.prenom}` : membre.nom;
+  $("feuille-titre").textContent = nom;
+  majPerimetre();
+  $("feuille-chemin").textContent = membre.chemin ?? fil();
+
+  majSoldes(membre);
+
+  enregistre = false;
+  $("montant").value = "";
+  armerBouton();
+  $("date-paiement").value = aujourdhui();
+  $("mode").value = "especes";
+  $("note").textContent =
+    membre.reste > 0
+      ? "La ventilation suit l'ordre des mois échus : le plus ancien d'abord."
+      : "Ce membre est à jour sur cet exercice.";
+
+  $("repartition").hidden = true;
+  $("repartition").replaceChildren();
+  $("recu").hidden = true;
+  $("recu").replaceChildren();
+  $("voile").hidden = false;
+  $("montant").focus?.();
+}
+
+function fermerFeuille() {
+  $("voile").hidden = true;
+  $("repartition").hidden = true;
+  enregistre = false;
+  armerBouton();
+  membreCourant = null;
+  exerciceFeuille = null;
+  if (ligneSelectionnee) {
+    ligneSelectionnee.classList.remove("selection");
+    ligneSelectionnee = null;
+  }
+}
+
+/**
+ * Ce que le versement en cours de saisie va couvrir : les mois, leur année, et
+ * la part qui déborderait du dû (annoncée avant validation, pas après).
+ */
+function afficherApercu(plan) {
+  const boite = $("repartition");
+  boite.replaceChildren();
+
+  const exercice = exerciceDuPaiement();
+  const titre = document.createElement("p");
+  titre.className = "repartition-titre";
+  titre.textContent =
+    `Imputé sur l'exercice ${nomExercice(exercice)} · ` +
+    `${fcf(plan.ventile)} de ${fcf(membreCourant.du)} dus` +
+    (plan.affectations.length === 0 ? " · aucun mois échu" : "");
+  boite.append(titre);
+
+  const date = $("date-paiement").value;
+  const anneePaie = Number(date.slice(0, 4));
+  const moisPaie = Number(date.slice(5, 7));
+
+  if (plan.affectations.length > 0) {
+    const liste = document.createElement("ul");
+    for (const part of plan.affectations) {
+      const li = document.createElement("li");
+      const arriere =
+        part.annee < anneePaie || (part.annee === anneePaie && part.mois < moisPaie);
+      if (arriere) li.className = "arriere";
+      li.textContent = `${MOIS[part.mois - 1]} ${part.annee} · ${fcf(part.montant)}`;
+      liste.append(li);
+    }
+    boite.append(liste);
+  }
+
+  if (plan.reliquat > 0) {
+    const reste = document.createElement("p");
+    reste.className = "repartition-reliquat";
+    reste.textContent =
+      `${fcf(plan.reliquat)} ne peuvent pas être imputés : ` +
+      "aucun mois échu ne reste à régler sur cet exercice. Baissez le montant ou choisissez l'année concernée.";
+    boite.append(reste);
+  }
+
+  boite.hidden = false;
+}
+
+async function rafraichirApercu() {
+  const boite = $("repartition");
+  const exercice = exerciceDuPaiement();
+  const montant = Number($("montant").value);
+
+  if (!membreCourant || !exercice || !Number.isInteger(montant) || montant <= 0) {
+    boite.hidden = true;
+    boite.replaceChildren();
+    return;
+  }
+
+  try {
+    const plan = await invoke("previsualiser", {
+      membreId: membreCourant.id,
+      exerciceId: exercice.id,
+      montant,
+      datePaiement: $("date-paiement").value,
+    });
+    afficherApercu(plan);
+  } catch (erreur) {
+    boite.replaceChildren();
+    const message = document.createElement("p");
+    message.className = "repartition-reliquat";
+    message.textContent = String(erreur);
+    boite.append(message);
+    boite.hidden = false;
+  }
+}
+
+function afficherRecu(paiement) {
+  const boite = $("recu");
+  boite.replaceChildren();
+
+  const numero = document.createElement("p");
+  numero.className = "recu-numero";
+  numero.textContent = `${paiement.numero_recu} · ${fcf(paiement.montant_total)}`;
+  boite.append(numero);
+
+  const liste = document.createElement("ul");
+  for (const part of paiement.affectations) {
+    const li = document.createElement("li");
+    li.textContent = `${MOIS[part.mois - 1]} ${part.annee} — ${fcf(part.montant)}`;
+    liste.append(li);
+  }
+  boite.append(liste);
+  boite.hidden = false;
+}
+
+async function encaisser() {
+  if (!membreCourant) return;
+
+  const exercice = exerciceDuPaiement();
+  const montant = Number($("montant").value);
+  if (!Number.isInteger(montant) || montant <= 0) {
+    $("note").textContent = "Montant invalide : un nombre entier de francs, supérieur à zéro.";
+    return;
+  }
+  if (!exercice) {
+    $("note").textContent = "Aucun exercice ouvert : impossible d'imputer le versement.";
+    return;
+  }
+
+  const bouton = $("encaisser");
+  bouton.disabled = true;
+  bouton.textContent = "Enregistrement…";
+  try {
+    const paiement = await invoke("enregistrer_paiement", {
+      membreId: membreCourant.id,
+      exerciceId: exercice.id,
+      montant,
+      datePaiement: $("date-paiement").value,
+      mode: $("mode").value,
+    });
+    afficherRecu(paiement);
+    enregistre = true;
+    $("montant").value = "";
+    $("note").textContent = "";
+    $("repartition").hidden = true;
+    $("repartition").replaceChildren();
+
+    // Les soldes doivent suivre l'encaissement. On relit le membre lui-même :
+    // la feuille peut avoir été ouverte par la recherche, donc hors de la
+    // famille actuellement affichée.
+    const id = membreCourant.id;
+    await chargerMembres();
+    const aJour = await invoke("membre", {
+      membreId: id,
+      exerciceId: exercice.id,
+    });
+    if (aJour) {
+      membreCourant = { ...membreCourant, ...aJour };
+      majSoldes(membreCourant);
+    }
+    await chargerResume();
+  } catch (erreur) {
+    $("note").textContent = String(erreur);
+  } finally {
+    // `armerBouton` et non `disabled = false` : après un succès, le bouton doit
+    // rester désarmé jusqu'à la prochaine saisie.
+    armerBouton();
+  }
+}
+
+for (const id of ["montant", "date-paiement"]) {
+  $(id).addEventListener("input", () => {
+    if (id === "montant") {
+      // Nouvelle saisie = nouveau versement : le reçu précédent s'efface et le
+      // bouton se réarme.
+      enregistre = false;
+      $("recu").hidden = true;
+    }
+    armerBouton();
+    rafraichirApercu().catch((e) => afficherErreur(e));
+  });
+  $(id).addEventListener("change", () => {
+    armerBouton();
+    rafraichirApercu().catch((e) => afficherErreur(e));
+  });
+}
+
+$("fermer-feuille").addEventListener("click", fermerFeuille);
+$("encaisser").addEventListener("click", () => {
+  encaisser().catch((e) => afficherErreur(e));
+});
+$("voile").addEventListener("click", (evenement) => {
+  if (evenement.target === $("voile")) fermerFeuille();
 });
 
 /* -------------------------------- départ ------------------------------- */

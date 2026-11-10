@@ -22,6 +22,13 @@
   padding: 0;
 }
 
+/* Les règles de classe ci-dessous posent un `display` : sans ce garde-fou,
+   elles écraseraient le `display: none` que le navigateur applique à
+   `[hidden]`, et le voile resterait affiché par-dessus l'application. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   height: 100%;
@@ -332,6 +339,189 @@ tbody tr:hover {
   color: #e0937f;
 }
 
+tbody tr.cliquable {
+  cursor: pointer;
+}
+
+tbody tr.selection {
+  background: var(--accent-doux);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* ---------- feuille de cotisation ---------- */
+.voile {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 6, 10, 0.66);
+  backdrop-filter: blur(3px);
+}
+
+.feuille {
+  width: 520px;
+  max-width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  border: 1px solid var(--bord-net);
+  border-radius: 14px;
+  background: var(--panneau);
+  box-shadow: var(--ombre);
+}
+
+.feuille-entete {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--bord);
+}
+
+.feuille-entete h3 {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.fermer {
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--texte-faible);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fermer:hover {
+  color: var(--texte);
+}
+
+.feuille-corps {
+  padding: 16px 18px 18px;
+}
+
+.soldes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.solde {
+  padding: 8px 10px;
+  border: 1px solid var(--bord);
+  border-radius: 8px;
+  background: var(--fond);
+}
+
+.solde-valeur {
+  display: block;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.solde-libelle {
+  display: block;
+  color: var(--texte-faible);
+  font-size: 10.5px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.champs {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.champ {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--texte-doux);
+}
+
+.champ input,
+.champ select {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--bord);
+  border-radius: 7px;
+  background: var(--fond);
+  color: var(--texte);
+  font: inherit;
+  outline: none;
+}
+
+.champ input:focus,
+.champ select:focus {
+  border-color: var(--bord-net);
+  box-shadow: 0 0 0 3px rgba(217, 178, 95, 0.12);
+}
+
+.note {
+  margin-top: 10px;
+  min-height: 16px;
+  color: var(--texte-faible);
+  font-size: 12px;
+}
+
+.actions {
+  margin-top: 12px;
+  text-align: right;
+}
+
+.primaire {
+  padding: 9px 18px;
+  border: 1px solid rgba(217, 178, 95, 0.5);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #171307;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.primaire:hover {
+  background: #e5c073;
+}
+
+.primaire:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.recu {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(87, 184, 148, 0.35);
+  border-radius: 9px;
+  background: rgba(87, 184, 148, 0.08);
+}
+
+.recu-numero {
+  margin-bottom: 8px;
+  color: var(--vert);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.4px;
+}
+
+.recu ul {
+  list-style: none;
+  color: var(--texte-doux);
+  font-size: 12.5px;
+}
+
+.recu li {
+  padding: 2px 0;
+}
+
 .badge {
   display: inline-block;
   padding: 2px 8px;
@@ -384,4 +574,101 @@ tbody tr:hover {
 ::-webkit-scrollbar-thumb:hover {
   background: #3a4356;
   background-clip: content-box;
+}
+
+/* ---------- répartition prévisionnelle ---------- */
+.repartition {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--bord);
+  border-radius: 8px;
+  background: var(--fond);
+  font-size: 12px;
+}
+
+.repartition-titre {
+  color: var(--texte-doux);
+  margin-bottom: 8px;
+}
+
+.repartition ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+}
+
+.repartition li {
+  padding: 3px 8px;
+  border: 1px solid var(--bord-net);
+  border-radius: 999px;
+  color: var(--texte);
+  font-variant-numeric: tabular-nums;
+}
+
+.repartition li.arriere {
+  border-color: rgba(217, 178, 95, 0.45);
+  color: var(--accent);
+}
+
+.repartition-reliquat {
+  margin-top: 8px;
+  color: #e0937f;
+}
+
+.primaire:disabled {
+  opacity: 0.55;
+  cursor: default;
+  filter: grayscale(0.35);
+}
+
+/* ---------- recherche globale d'un membre ---------- */
+.recherche-globale {
+  position: relative;
+  flex: 1 1 auto;
+  max-width: 420px;
+  margin: 0 20px;
+}
+
+.recherche-globale input {
+  width: 100%;
+  padding: 8px 11px;
+  border: 1px solid var(--bord);
+  border-radius: 8px;
+  background: var(--panneau);
+  color: var(--texte);
+  font: inherit;
+  outline: none;
+}
+
+.recherche-globale input::placeholder {
+  color: var(--texte-faible);
+}
+
+.recherche-globale input:focus {
+  border-color: var(--bord-net);
+  box-shadow: 0 0 0 3px rgba(217, 178, 95, 0.12);
+}
+
+.resultats {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 15;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--bord-net);
+  border-radius: 10px;
+  background: var(--panneau-haut);
+  box-shadow: var(--ombre);
+}
+
+.resultats .ligne {
+  width: 100%;
+}
+
+.feuille .annees {
+  margin-bottom: 12px;
 }
