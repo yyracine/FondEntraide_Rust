@@ -1,0 +1,23 @@
+# Compilation
+/target/
+**/*.rs.bk
+
+# Bases de données et sources nominatives : elles contiennent les données
+# réelles des 599 membres. Elles restent locales ; `cotisations_v2.db` se
+# régénère avec `python migrer_v2.py`.
+*.db
+*.db-wal
+*.db-shm
+*.xlsx
+
+# Caches et artefacts locaux
+__pycache__/
+*.pyc
+*.log
+*.bak
+.freebuff/
+
+# Système
+.DS_Store
+Thumbs.db
+desktop.ini

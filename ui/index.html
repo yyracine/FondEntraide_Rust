@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fonds d'Entraide</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="bandeau" class="bandeau" hidden></div>
+
+    <header class="entete">
+      <div class="marque">
+        <span class="pastille" aria-hidden="true"></span>
+        <div>
+          <h1>Fonds d'Entraide</h1>
+          <p class="sous-titre">Registre des cotisations familiales</p>
+        </div>
+      </div>
+      <div class="compteurs" id="compteurs"></div>
+    </header>
+
+    <main class="piste">
+      <section class="colonne">
+        <h2>Clans</h2>
+        <div class="liste" id="liste-clans"></div>
+      </section>
+      <section class="colonne">
+        <h2>Grandes familles</h2>
+        <div class="liste" id="liste-gf"></div>
+      </section>
+      <section class="colonne">
+        <h2>Lignées</h2>
+        <div class="liste" id="liste-lignees"></div>
+      </section>
+      <section class="colonne">
+        <h2>Familles</h2>
+        <div class="liste" id="liste-familles"></div>
+      </section>
+    </main>
+
+    <section class="membres">
+      <div class="barre">
+        <div>
+          <h2 id="titre-membres">Membres</h2>
+          <p class="fil" id="fil"></p>
+        </div>
+        <input
+          id="recherche"
+          type="search"
+          placeholder="Rechercher un nom ou un prénom…"
+          autocomplete="off"
+        />
+      </div>
+      <div class="annees" id="annees"></div>
+      <div class="tableau">
+        <table>
+          <thead>
+            <tr>
+              <th>Nom</th>
+              <th>Prénom</th>
+              <th>Statut</th>
+              <th class="droite" id="th-paye">Payé</th>
+              <th class="droite" id="th-reste">Reste</th>
+              <th class="droite" id="th-arrieres">Arriérés</th>
+              <th>Parent</th>
+            </tr>
+          </thead>
+          <tbody id="corps-membres"></tbody>
+        </table>
+      </div>
+      <p class="compte" id="compte-membres"></p>
+    </section>
+
+    <script src="app.js"></script>
+  </body>
+</html>

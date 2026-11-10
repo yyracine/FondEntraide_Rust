@@ -1,0 +1,12 @@
+[package]
+name = "fonds-app"
+version = "0.1.0"
+edition = "2021"
+description = "Coquille Tauri 2 du Fonds d'Entraide"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+fonds-core = { path = "../core" }
+tauri = { version = "2", features = [] }
