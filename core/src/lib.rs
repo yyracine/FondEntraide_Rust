@@ -15,10 +15,13 @@
 pub mod db;
 pub mod domaine;
 pub mod erreur;
+pub mod exports;
 pub mod hierarchie;
 pub mod membres;
 pub mod noeuds;
+pub mod purge;
 pub mod recus;
+pub mod sauvegardes;
 pub mod tarifs;
 pub mod ventilation;
 

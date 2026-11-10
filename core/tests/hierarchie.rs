@@ -27,6 +27,23 @@ fn jour(a: i32, m: u32, j: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(a, m, j).expect("date valide")
 }
 
+// L'export « tous les membres » doit voir la base entière, pas une famille.
+#[test]
+fn tous_les_membres_sortent_avec_leur_chemin() {
+    let (_dir, con) = base();
+    let membres = hierarchie::tous_membres(&con, None).expect("liste complète");
+
+    let attendus: i64 = con
+        .query_row("SELECT COUNT(*) FROM membres", [], |l| l.get(0))
+        .unwrap();
+    assert_eq!(membres.len() as i64, attendus, "aucun membre oublié");
+    assert!(membres.len() > 500, "toute la base : {}", membres.len());
+    assert!(
+        membres.iter().all(|m| !m.chemin.is_empty()),
+        "chaque ligne porte son chemin dans la hiérarchie"
+    );
+}
+
 fn creer_membre(con: &Connection, famille_id: i64, nom: &str, entree: &str) -> i64 {
     con.execute(
         "INSERT INTO membres (famille_id, nom, prenom, statut, date_entree)

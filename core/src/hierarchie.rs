@@ -396,3 +396,15 @@ pub fn membre(
             .map(|trouve| trouve.membre),
     )
 }
+
+/// Tous les membres de la base, sans filtre de famille ni de nom, avec leur
+/// chemin dans la hiérarchie : la liste complète, pas celle d'une famille.
+///
+/// `limite: -1` veut dire « pas de limite » pour SQLite. La requête reste
+/// unique et agrégée : 600 membres ne déclenchent pas 600 requêtes (P07).
+pub fn tous_membres(
+    con: &Connection,
+    exercice_id: Option<i64>,
+) -> Result<Vec<MembreTrouve>, Erreur> {
+    rechercher_membres(con, None, None, exercice_id, None, -1)
+}

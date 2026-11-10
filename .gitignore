@@ -10,8 +10,9 @@
 *.db-shm
 *.xlsx
 
-# Sauvegardes locales (données nominatives)
+# Sauvegardes et exports locaux (données nominatives)
 sauvegardes/
+exports/
 
 # Caches et artefacts locaux
 __pycache__/

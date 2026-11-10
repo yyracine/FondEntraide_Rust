@@ -61,6 +61,18 @@ pub enum Erreur {
     #[error("le tarif doit être supérieur à zéro")]
     TarifInvalide,
 
+    #[error("sauvegarde impossible : {0}")]
+    SauvegardeEchouee(String),
+
+    #[error("export impossible : {0}")]
+    ExportEchoue(String),
+
+    #[error("restauration refusée : {0}")]
+    RestaurationRefusee(String),
+
+    #[error("purge refusée : {0}")]
+    PurgeRefusee(String),
+
     #[error(
         "paiement incohérent après écriture : montant total différent de la somme des affectations"
     )]

@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 
 use chrono::{Datelike, NaiveDate};
-use fonds_core::{db, erreur::Erreur, membres, noeuds, tarifs, ventilation};
+use fonds_core::{db, erreur::Erreur, membres, noeuds, sauvegardes, tarifs, ventilation};
 use rusqlite::{params, Connection};
 
 struct Base {
@@ -1006,4 +1006,170 @@ fn un_tarif_change_en_cours_d_annee_ne_vaut_que_pour_les_mois_suivants() {
         tarifs::changer(&mut con, exercice, 0, "2037-06-01"),
         Err(Erreur::TarifInvalide)
     ));
+}
+
+// ------------------------------------------------------------------
+//  13. Sauvegarde : la copie relue remet la base dans son état, et l'état
+//      courant est sauvegardé avant d'être écrasé.
+// ------------------------------------------------------------------
+#[test]
+fn sauvegarde_puis_restauration_revient_a_l_etat_de_la_copie() {
+    let b = base();
+    let mut con = ouvrir(&b);
+    let famille = premiere_famille(&con);
+    creer_membre(&con, famille, "ZZSAUVE", None, None);
+
+    let copie = sauvegardes::sauvegarder(&con, &b.chemin).expect("sauvegarde");
+    assert!(copie.nom.starts_with("cotisations_"));
+    assert!(std::path::Path::new(&copie.chemin).is_file());
+    assert!(copie.octets > 0);
+
+    // Une écriture après la copie doit disparaître à la restauration.
+    creer_membre(&con, famille, "ZZAPRES", None, None);
+    let apres: i64 = con
+        .query_row(
+            "SELECT COUNT(*) FROM membres WHERE nom = 'ZZAPRES'",
+            [],
+            |l| l.get(0),
+        )
+        .unwrap();
+    assert_eq!(apres, 1);
+
+    let secours = sauvegardes::restaurer(&mut con, std::path::Path::new(&copie.chemin), &b.chemin)
+        .expect("restauration");
+    assert!(
+        std::path::Path::new(&secours.chemin).is_file(),
+        "l'état courant est sauvegardé avant d'être écrasé"
+    );
+
+    let garde: i64 = con
+        .query_row(
+            "SELECT COUNT(*) FROM membres WHERE nom = 'ZZSAUVE'",
+            [],
+            |l| l.get(0),
+        )
+        .unwrap();
+    assert_eq!(garde, 1, "le membre d'avant la copie est revenu");
+    let efface: i64 = con
+        .query_row(
+            "SELECT COUNT(*) FROM membres WHERE nom = 'ZZAPRES'",
+            [],
+            |l| l.get(0),
+        )
+        .unwrap();
+    assert_eq!(efface, 0, "l'écriture d'après la copie a disparu");
+
+    // La liste retrouve les deux copies, la plus récente d'abord.
+    let liste = sauvegardes::lister(&b.chemin).expect("liste");
+    assert!(liste.iter().any(|s| s.nom == copie.nom));
+    assert!(liste.iter().any(|s| s.nom == secours.nom));
+    assert!(
+        liste.windows(2).all(|paire| paire[0].nom >= paire[1].nom),
+        "la plus récente d'abord"
+    );
+}
+
+// ------------------------------------------------------------------
+//  14. D9 : une copie abîmée, un schéma v1 ou un nom hors du dossier sont
+//      refusés avant toute écriture.
+// ------------------------------------------------------------------
+#[test]
+fn une_copie_abimee_est_refusee_sans_toucher_a_la_base() {
+    let b = base();
+    let mut con = ouvrir(&b);
+    let famille = premiere_famille(&con);
+    creer_membre(&con, famille, "ZZINTACT", None, None);
+
+    let dossier = sauvegardes::dossier(&b.chemin);
+    std::fs::create_dir_all(&dossier).expect("dossier des sauvegardes");
+
+    // Fichier qui n'est pas une base du tout.
+    let illisible = dossier.join("cotisations_abimee.db");
+    std::fs::write(&illisible, b"ceci n'est pas une base").expect("écriture du faux");
+
+    // Base valide, mais d'ancien schéma (v1) : c'est le cas de la sauvegarde
+    // Python `sauvegardes/cotisations_2026-11-10.db`.
+    let ancienne = dossier.join("cotisations_v1.db");
+    {
+        let v1 = Connection::open(&ancienne).expect("base v1");
+        v1.execute_batch("PRAGMA user_version = 1; CREATE TABLE marqueur (x INTEGER);")
+            .expect("schéma v1");
+    }
+
+    for chemin in [&illisible, &ancienne] {
+        match sauvegardes::restaurer(&mut con, chemin, &b.chemin) {
+            Err(Erreur::RestaurationRefusee(_)) => {}
+            autre => panic!(
+                "copie refusée attendue pour {} : {autre:?}",
+                chemin.display()
+            ),
+        }
+    }
+
+    let membres: i64 = con
+        .query_row("SELECT COUNT(*) FROM membres", [], |l| l.get(0))
+        .unwrap();
+    assert!(membres > 0, "la base vivante est intacte");
+
+    // Le nom vient de l'interface : aucune traversée de chemin acceptée.
+    for nom in [
+        "../cotisations.db",
+        "..\\cotisations.db",
+        "absente.db",
+        "x.txt",
+    ] {
+        assert!(
+            matches!(
+                sauvegardes::chemin_de(&b.chemin, nom),
+                Err(Erreur::RestaurationRefusee(_))
+            ),
+            "nom refusé attendu : {nom}"
+        );
+    }
+}
+
+// ------------------------------------------------------------------
+//  15. Le dossier ne grossit pas sans fin : seules les cinq copies les plus
+//      récentes restent, et rien d'autre n'est effacé.
+// ------------------------------------------------------------------
+#[test]
+fn les_copies_au_dela_de_cinq_sont_effacees() {
+    let b = base();
+    let con = ouvrir(&b);
+
+    // Une copie déposée par un autre outil ne doit jamais être touchée.
+    let dossier = sauvegardes::dossier(&b.chemin);
+    std::fs::create_dir_all(&dossier).expect("dossier");
+    let etranger = dossier.join("avant_correction_noms_20261109_134410.db");
+    std::fs::write(&etranger, b"pas une base, mais pas a nous").expect("dépôt");
+
+    let mut creees = Vec::new();
+    for _ in 0..7 {
+        // Un écart réel entre les fichiers : le tri se fait sur la date.
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        creees.push(sauvegardes::sauvegarder(&con, &b.chemin).unwrap().nom);
+    }
+
+    let effacees = sauvegardes::purger(&b.chemin).expect("purge");
+    assert_eq!(effacees, 2, "les deux copies au-delà des cinq");
+    assert!(etranger.is_file(), "le fichier étranger est intact");
+
+    let restantes: Vec<String> = sauvegardes::lister(&b.chemin)
+        .unwrap()
+        .into_iter()
+        .map(|s| s.nom)
+        .collect();
+    assert_eq!(restantes.len(), 5, "l'écran ne voit que les cinq copies");
+    for vieille in &creees[..2] {
+        assert!(
+            !restantes.contains(vieille),
+            "la plus ancienne est partie : {vieille}"
+        );
+    }
+    for recente in &creees[2..] {
+        assert!(
+            restantes.contains(recente),
+            "les cinq dernières restent : {recente}"
+        );
+    }
 }

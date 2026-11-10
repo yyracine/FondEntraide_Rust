@@ -224,6 +224,9 @@ h1 {
   gap: 18px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--bord);
+  /* Sur une fenêtre étroite, les commandes passent sous le titre au lieu
+     d'être rognées. */
+  flex-wrap: wrap;
 }
 
 .barre h2 {
@@ -849,6 +852,31 @@ tbody tr.selection {
     border-top: 1px solid #999;
     font-weight: 600;
   }
+
+  /* Liste des membres : un tableau lisible en noir sur blanc. */
+  .impression-table {
+    width: 100%;
+    margin-top: 5mm;
+    border-collapse: collapse;
+    font-size: 10pt;
+  }
+
+  .impression-table th {
+    padding: 1.5mm 2mm;
+    border-bottom: 1px solid #999;
+    text-align: left;
+    font-size: 9pt;
+    color: #444;
+  }
+
+  .impression-table td {
+    padding: 1.2mm 2mm;
+    border-bottom: 1px solid #ddd;
+  }
+
+  .impression-table .droite {
+    text-align: right;
+  }
 }
 
 /* ---------- grille des 12 mois ---------- */
@@ -923,11 +951,164 @@ tbody tr.selection {
   }
 }
 
+/* ---------- bandeau de confirmation ---------- */
+.bandeau.succes {
+  border-color: rgba(120, 190, 140, 0.45);
+  background: rgba(120, 190, 140, 0.12);
+  color: #cfe9d6;
+}
+
+/* ---------- sauvegardes ---------- */
+.sauvegardes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.sauvegarde {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--bord);
+  border-radius: 8px;
+  background: var(--fond);
+}
+
+.sauvegarde.recente {
+  border-color: rgba(126, 176, 224, 0.5);
+}
+
+.sauvegarde-texte {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sauvegarde-nom {
+  color: var(--texte);
+  font-size: 13px;
+}
+
+.sauvegarde-detail {
+  color: var(--texte-faible);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sauvegarde .restaurer {
+  flex: none;
+}
+
+.sauvegarde .restaurer.arme {
+  border-color: rgba(224, 118, 118, 0.65);
+  color: #f0a2a2;
+}
+
+/* ---------- purge ---------- */
+.purge {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--bord);
+}
+
+.purge h4 {
+  margin: 0 0 6px;
+  color: var(--texte);
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.purge-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.danger {
+  padding: 8px 12px;
+  border: 1px solid rgba(224, 118, 118, 0.45);
+  border-radius: 8px;
+  background: transparent;
+  color: #e8a1a1;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.danger:hover {
+  border-color: rgba(224, 118, 118, 0.8);
+}
+
+.danger.arme {
+  border-color: rgba(224, 118, 118, 0.9);
+  background: rgba(224, 118, 118, 0.14);
+  color: #ffc9c9;
+}
+
 /* ---------- formulaire de membre ---------- */
 .barre-outils {
   display: flex;
   align-items: center;
   gap: 8px;
+  /* Sept commandes : la barre passe à la ligne plutôt que de cacher le
+     dernier bouton, et aucun contrôle ne se comprime. */
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.barre-outils button,
+.barre-outils input {
+  flex: none;
+}
+
+/* Largeur stable : le bouton ne doit pas sauter quand son libellé change. */
+#voir-tous {
+  min-width: 108px;
+}
+
+/* Menu « Plus » : les exports et l'impression n'encombrent plus la barre. */
+.menu-plus {
+  position: relative;
+}
+
+.menu-plus-liste {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 250px;
+  padding: 6px;
+  border: 1px solid var(--bord);
+  border-radius: 10px;
+  background: var(--panneau);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.45);
+}
+
+.menu-plus-liste button {
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--texte);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-plus-liste button:hover {
+  background: var(--panneau-haut);
 }
 
 .barre-outils input {

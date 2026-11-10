@@ -268,6 +268,55 @@ const reponses = {
     modifies: 8,
     conserves: 1,
   },
+  sauvegardes: [
+    { nom: "cotisations_2026-11-10_16-27-10.db", chemin: "C:\\tmp\\sauvegardes\\a.db", octets: 200_704 },
+    { nom: "cotisations_2026-11-01_09-00-00.db", chemin: "C:\\tmp\\sauvegardes\\b.db", octets: 198_656 },
+  ],
+  sauvegarder_base: {
+    nom: "cotisations_2026-11-10_16-00-00.db",
+    chemin: "C:\\tmp\\sauvegardes\\c.db",
+    octets: 200_704,
+  },
+  restaurer_base: {
+    nom: "cotisations_2026-11-10_16-00-00.db",
+    chemin: "C:\\tmp\\sauvegardes\\c.db",
+    octets: 200_704,
+  },
+  purger_base: {
+    copie: {
+      nom: "cotisations_2026-11-10_18-00-00.db",
+      chemin: "C:\\tmp\\sauvegardes\\p.db",
+      octets: 200_704,
+    },
+    bilan: {
+      paiements: 227,
+      affectations: 1805,
+      membres: 0,
+      familles: 0,
+      lignees: 0,
+      grandesFamilles: 0,
+      clans: 0,
+    },
+  },
+  exporter_csv: {
+    chemin: "C:\\tmp\\exports\\membres_2026-11-10_17-30-00.csv",
+    lignes: 1,
+  },
+  tous_membres: [
+    {
+      id: 180,
+      nom: "Akesse",
+      prenom: "Comoé",
+      statut: "actif",
+      ordre_fratrie: null,
+      parent: null,
+      du: 12_000,
+      paye: 3_000,
+      reste: 9_000,
+      arrieres: 8_000,
+      chemin: "YAOCRE › YAOCRE APPIA › Akesse Comoé",
+    },
+  ],
   clans: [{ id: 2, nom: "YAOCRE", description: null }],
   grandes_familles: [{ id: 7, nom: "YAOCRE APPIA", clan_id: 2 }],
   lignees: [{ id: 18, nom: "YAOCRE APPIA", grande_famille_id: 7 }],
@@ -336,6 +385,8 @@ assert.deepEqual(jetons(), ["Tous", "2026", "2025", "2024"], "quatre puces d'exe
 assert.equal(actif(), "2026", "l'exercice courant est sélectionné par défaut");
 assert.equal($("th-paye").textContent, "Payé 2026", "l'en-tête porte l'année");
 assert.equal($("fil").textContent, "", "aucun fil d'Ariane avant sélection");
+assert.equal($("menu-plus").hidden, true, "le menu Plus est fermé au départ");
+assert.equal($("voir-tous").hidden, false, "« Voir tous » est visible au départ");
 
 // 1. clic sur le clan : la chaîne à enfant unique doit descendre jusqu'aux membres
 $("liste-clans").children[0].click();
@@ -360,6 +411,68 @@ assert.equal(ligne.children[3].textContent, fcf(3_000), "payé");
 assert.equal(ligne.children[4].textContent, fcf(9_000), "reste");
 assert.equal(ligne.children[5].textContent, fcf(8_000), "arriérés");
 assert.match($("compte-membres").textContent, /Exercice 2026/);
+
+// 1 bis. export CSV : il reprend exactement la liste affichée
+$("ouvrir-plus").click();
+assert.equal($("menu-plus").hidden, false, "le menu Plus s'ouvre");
+$("exporter-membres").click();
+await attendre();
+assert.equal($("menu-plus").hidden, true, "le menu se referme après l'action");
+
+const exporte = dernierAppel("exporter_csv");
+assert.ok(exporte, "l'export part au cœur");
+assert.equal(exporte.args.nom, "membres");
+// Les tableaux naissent dans le contexte VM : on les recopie avant de
+// comparer, sinon deepStrictEqual voit deux prototypes différents.
+assert.deepEqual(Array.from(exporte.args.colonnes), [
+  "Nom",
+  "Prénom",
+  "Statut",
+  "Payé 2026",
+  "Reste 2026",
+  "Arriérés 2026",
+  "Parent",
+]);
+assert.deepEqual(
+  Array.from(exporte.args.lignes, (ligne) => Array.from(ligne)),
+  [["Akesse", "Comoé", "actif", "3000", "9000", "8000", ""]],
+  "mêmes valeurs que le tableau, montants nus",
+);
+assert.equal($("bandeau").hidden, false, "le chemin de l'export est affiché");
+assert.match($("bandeau").textContent, /membres_2026-11-10_17-30-00\.csv/);
+assert.ok($("bandeau").classList.contains("succes"), "le bandeau est en mode confirmation");
+
+// 1 ter. liste complète : toutes les familles, avec le chemin de chacun
+$("exporter-tous").click();
+await attendre();
+
+assert.equal(
+  dernierAppel("tous_membres")?.args.exerciceId,
+  1,
+  "la liste complète suit l'exercice choisi",
+);
+const complet = dernierAppel("exporter_csv");
+assert.equal(complet.args.nom, "membres-tous");
+assert.deepEqual(Array.from(complet.args.colonnes), [
+  "Chemin",
+  "Nom",
+  "Prénom",
+  "Statut",
+  "Payé 2026",
+  "Reste 2026",
+  "Arriérés 2026",
+  "Parent",
+]);
+assert.deepEqual(Array.from(complet.args.lignes[0]), [
+  "YAOCRE › YAOCRE APPIA › Akesse Comoé",
+  "Akesse",
+  "Comoé",
+  "actif",
+  "3000",
+  "9000",
+  "8000",
+  "",
+]);
 
 // 2. puce 2024 : l'en-tête et la requête doivent suivre
 $("annees").children[3].click();
@@ -752,6 +865,154 @@ $("tarif-montant").value = "1600";
 $("tarif-montant").input();
 assert.equal($("appliquer-tarif").disabled, false);
 assert.equal($("appliquer-tarif").textContent, "Appliquer le tarif");
+
+// 13. sauvegardes : liste, restauration en deux clics, copie à la demande.
+$("ouvrir-sauvegarde").click();
+await attendre();
+
+assert.equal($("voile-sauvegarde").hidden, false, "l'écran des sauvegardes s'ouvre");
+assert.equal($("liste-sauvegardes").children.length, 2, "deux copies listées");
+assert.match(
+  $("liste-sauvegardes").children[0].textContent,
+  /10 novembre 2026 à 16:27/,
+  "le nom de fichier devient une date lisible",
+);
+assert.match(
+  $("liste-sauvegardes").children[0].textContent,
+  /la plus récente/,
+  "la copie du jour est repérée",
+);
+
+
+const rangee = $("liste-sauvegardes").children[1];
+const restaurer = rangee.querySelectorAll(".restaurer")[0];
+restaurer.click();
+assert.equal(dernierAppel("restaurer_base"), undefined, "un clic n'écrase pas la base");
+assert.equal(restaurer.textContent, "Confirmer");
+
+restaurer.click();
+await attendre();
+
+assert.equal(
+  dernierAppel("restaurer_base")?.args.nom,
+  "cotisations_2026-11-01_09-00-00.db",
+  "la copie choisie part à la restauration",
+);
+assert.match($("sauvegarde-note").textContent, /Base restaurée depuis/);
+assert.match($("sauvegarde-note").textContent, /cotisations_2026-11-10_16-00-00\.db/);
+
+const indexRestauration = appels.findLastIndex((a) => a.commande === "restaurer_base");
+assert.ok(
+  appels.slice(indexRestauration + 1).some((a) => a.commande === "exercices"),
+  "les exercices sont relus après restauration",
+);
+assert.ok(
+  appels.slice(indexRestauration + 1).some((a) => a.commande === "resume"),
+  "les compteurs sont relus après restauration",
+);
+
+$("sauvegarder-base").click();
+await attendre();
+
+assert.ok(dernierAppel("sauvegarder_base"), "la copie part à la demande");
+assert.match($("sauvegarde-note").textContent, /cotisations_2026-11-10_16-00-00\.db/);
+assert.equal($("sauvegarder-base").disabled, false, "le bouton revient après la copie");
+assert.equal($("sauvegarder-base").textContent, "Sauvegarder maintenant");
+
+// 13 bis. purge : deux clics, copie de sécurité annoncée, données relues
+$("purge-cotisations").click();
+assert.equal(dernierAppel("purger_base"), undefined, "un clic n'efface rien");
+assert.equal($("purge-cotisations").textContent, "Confirmer…");
+
+$("purge-cotisations").click();
+await attendre();
+
+assert.equal(dernierAppel("purger_base")?.args.portee, "cotisations");
+assert.match($("sauvegarde-note").textContent, /Effacé : 227 versements/);
+assert.match($("sauvegarde-note").textContent, /cotisations_2026-11-10_18-00-00\.db/);
+assert.equal($("purge-cotisations").textContent, "Effacer les cotisations");
+
+const indexPurge = appels.findLastIndex((a) => a.commande === "purger_base");
+assert.ok(
+  appels.slice(indexPurge + 1).some((a) => a.commande === "resume"),
+  "les compteurs sont relus après la purge",
+);
+assert.ok(
+  appels.slice(indexPurge + 1).some((a) => a.commande === "exercices"),
+  "les exercices sont relus après la purge",
+);
+
+// 14. impression de la liste affichée : même feuille que le reçu, avec un
+//     en-tête daté et une ligne de totaux.
+$("ouvrir-plus").click();
+$("imprimer-membres").click();
+await attendre();
+
+assert.equal(impressions, 2, "window.print est appelé pour la liste");
+assert.match($("impression").textContent, /Liste des membres/);
+assert.match($("impression").textContent, /Akesse/);
+assert.match($("impression").textContent, /Total payé/);
+assert.ok(
+  $("impression").textContent.includes(fcf(3_000)),
+  "le total payé est celui du tableau",
+);
+assert.ok(
+  $("impression").textContent.includes(fcf(9_000)),
+  "le reste à payer est imprimé",
+);
+
+const jour = new Date();
+const attendu =
+  `${String(jour.getDate()).padStart(2, "0")}/` +
+  `${String(jour.getMonth() + 1).padStart(2, "0")}/${jour.getFullYear()}`;
+assert.ok(
+  $("impression").textContent.includes(`imprimé le ${attendu}`),
+  "la date d'impression est celle du jour",
+);
+
+// 15. vue complète : toute la base dans le tableau, avec le chemin
+$("voir-tous").click();
+await attendre();
+
+assert.equal(dernierAppel("tous_membres")?.args.exerciceId, 1);
+assert.equal($("titre-membres").textContent, "Tous les membres");
+assert.equal($("th-parent").textContent, "Chemin");
+assert.equal($("fil").textContent, "Toute la base");
+assert.equal($("voir-tous").hidden, false, "« Voir tous » reste visible");
+assert.equal($("corps-membres").children.length, 1);
+assert.equal(
+  $("corps-membres").children[0].children[6].textContent,
+  "YAOCRE › YAOCRE APPIA › Akesse Comoé",
+  "la colonne Parent devient le chemin complet",
+);
+assert.match($("compte-membres").textContent, /Exercice 2026/);
+
+// changer d'exercice en vue complète recharge la liste au lieu de la vider
+$("annees").children[0].click();
+await attendre();
+assert.equal(dernierAppel("tous_membres")?.args.exerciceId, null, "puce Tous → null");
+assert.equal($("corps-membres").children.length, 1, "la liste complète reste affichée");
+
+// la recherche filtre toute la base, pas seulement la famille affichée
+$("recherche").value = "zzz";
+$("recherche").input();
+await attendre(250);
+assert.equal(
+  $("corps-membres").children[0].children[0].textContent,
+  "Aucun membre ne correspond à cette recherche.",
+);
+
+$("recherche").value = "akes";
+$("recherche").input();
+await attendre(250);
+assert.equal($("corps-membres").children.length, 1, "la recherche retrouve le membre");
+
+// retour au tableau familial par la colonne des clans
+$("liste-clans").children[0].click();
+await attendre();
+assert.equal($("titre-membres").textContent, "Akesse Comoé");
+assert.equal($("th-parent").textContent, "Parent");
+assert.equal($("voir-tous").hidden, false, "le bouton réapparaît hors vue complète");
 
 // 9. aucun handler n'a levé
 assert.deepEqual(

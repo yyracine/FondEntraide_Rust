@@ -7,7 +7,9 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use fonds_core::rusqlite::Connection;
-use fonds_core::{db, domaine, hierarchie, membres, noeuds, tarifs, ventilation};
+use fonds_core::{
+    db, domaine, hierarchie, membres, noeuds, purge, sauvegardes, tarifs, ventilation,
+};
 
 /// État partagé : une connexion, ou l'erreur qui empêche de l'ouvrir (affichée
 /// dans l'interface plutôt que de faire tomber la fenêtre).
@@ -153,6 +155,16 @@ fn rechercher_membres(
     etat.avec(|con| {
         hierarchie::rechercher_membres(con, None, Some(recherche.as_str()), exercice_id, None, 25)
     })
+}
+
+/// Liste complète des membres, toutes familles confondues : sert à l'export
+/// global, qui ne doit pas dépendre de la famille affichée.
+#[tauri::command]
+fn tous_membres(
+    etat: tauri::State<Etat>,
+    exercice_id: Option<i64>,
+) -> Result<Vec<hierarchie::MembreTrouve>, String> {
+    etat.avec(|con| hierarchie::tous_membres(con, exercice_id))
 }
 
 /// Fiche du membre : tous ses versements, reçu et mois couverts compris.
@@ -318,6 +330,69 @@ fn changer_tarif(
     tarifs::changer(&mut con, exercice_id, montant, &date_effet).map_err(|e| e.to_string())
 }
 
+/// Liste les copies de la base, de la plus récente à la plus ancienne.
+#[tauri::command]
+fn sauvegardes(etat: tauri::State<Etat>) -> Result<Vec<sauvegardes::Sauvegarde>, String> {
+    etat.avec(|_| sauvegardes::lister(&chemin_base()))
+}
+
+/// Crée une copie de la base, puis ne garde que les plus récentes.
+#[tauri::command]
+fn sauvegarder_base(etat: tauri::State<Etat>) -> Result<sauvegardes::Sauvegarde, String> {
+    let copie = etat.avec(|con| sauvegardes::sauvegarder(con, &chemin_base()))?;
+    // Le nettoyage ne doit pas faire échouer une copie déjà écrite et vérifiée.
+    let _ = sauvegardes::purger(&chemin_base());
+    Ok(copie)
+}
+
+/// Restaure une copie. Le nom vient de l'interface : le cœur refuse toute
+/// traversée de chemin. La base courante est sauvegardée avant l'écriture.
+#[tauri::command]
+fn restaurer_base(
+    etat: tauri::State<Etat>,
+    nom: String,
+) -> Result<sauvegardes::Sauvegarde, String> {
+    let base = chemin_base();
+    let chemin = sauvegardes::chemin_de(&base, &nom).map_err(|e| e.to_string())?;
+    let verrou = etat.base.as_ref().map_err(|e| e.clone())?;
+    let mut con = verrou
+        .lock()
+        .map_err(|_| "verrou de base empoisonné".to_string())?;
+    sauvegardes::restaurer(&mut con, &chemin, &base).map_err(|e| e.to_string())
+}
+
+/// Purge la base après une copie de sécurité automatique. La portée vient de
+/// l'interface et le cœur la valide : une faute de frappe ne vide rien. Les
+/// compteurs de reçus déjà consommés restent en place (D4).
+#[tauri::command]
+fn purger_base(etat: tauri::State<Etat>, portee: String) -> Result<purge::Purge, String> {
+    let portee = purge::Portee::depuis(&portee).map_err(|e| e.to_string())?;
+    let base = chemin_base();
+    let faite = etat.avec(|con| purge::purger_apres_copie(con, &base, portee))?;
+    // Le nettoyage des copies ne doit pas faire échouer une purge déjà faite.
+    let _ = sauvegardes::purger(&base);
+    Ok(faite)
+}
+
+/// Écrit une liste affichée en CSV dans `exports`, à côté de la base.
+/// La date du nom vient de SQLite, comme pour les sauvegardes.
+#[tauri::command]
+fn exporter_csv(
+    etat: tauri::State<Etat>,
+    nom: String,
+    colonnes: Vec<String>,
+    lignes: Vec<Vec<String>>,
+) -> Result<fonds_core::exports::Export, String> {
+    etat.avec(|con| {
+        let instant: String = con.query_row(
+            "SELECT strftime('%Y-%m-%d_%H-%M-%S', 'now', 'localtime')",
+            [],
+            |l| l.get(0),
+        )?;
+        fonds_core::exports::ecrire(&chemin_base(), &nom, &colonnes, &lignes, &instant)
+    })
+}
+
 fn main() {
     let etat = Etat::ouvrir();
 
@@ -329,6 +404,7 @@ fn main() {
             enregistrer_paiement,
             previsualiser,
             rechercher_membres,
+            tous_membres,
             membre,
             paiements_membre,
             supprimer_paiement,
@@ -341,6 +417,11 @@ fn main() {
             renommer_noeud,
             supprimer_noeud,
             changer_tarif,
+            exporter_csv,
+            sauvegardes,
+            sauvegarder_base,
+            restaurer_base,
+            purger_base,
             clans,
             grandes_familles,
             lignees,

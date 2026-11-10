@@ -7,6 +7,14 @@ const etat = {
   famille: null,
   exercices: [],
   exercice: null,
+  // Vue complète : le tableau affiche toute la base au lieu d'une famille.
+  vueComplete: false,
+  // Listes affichées : elles servent à l'export CSV, qui doit reproduire
+  // exactement l'écran, filtre compris.
+  clans: [],
+  grandesFamilles: [],
+  lignees: [],
+  familles: [],
 };
 
 const MOIS = [
@@ -46,14 +54,34 @@ let enregistre = false;
 let exerciceFeuille = null;
 
 /* ------------------------------- erreurs ------------------------------- */
+let minuterieInfo = null;
+
 function afficherErreur(texte) {
   const bandeau = $("bandeau");
   bandeau.textContent = String(texte);
   bandeau.hidden = false;
+  bandeau.classList.remove("succes");
+  clearTimeout(minuterieInfo);
+}
+
+/** Confirmation discrète : le bandeau se referme tout seul. */
+function afficherInfo(texte) {
+  const bandeau = $("bandeau");
+  bandeau.textContent = String(texte);
+  bandeau.hidden = false;
+  bandeau.classList.add("succes");
+  clearTimeout(minuterieInfo);
+  minuterieInfo = setTimeout(() => {
+    bandeau.hidden = true;
+    bandeau.classList.remove("succes");
+  }, 8000);
 }
 
 function effacerErreur() {
-  $("bandeau").hidden = true;
+  const bandeau = $("bandeau");
+  bandeau.hidden = true;
+  bandeau.classList.remove("succes");
+  clearTimeout(minuterieInfo);
 }
 
 /* ------------------------------- outils -------------------------------- */
@@ -142,6 +170,44 @@ function fil() {
   return morceaux.map((m) => `${m.etiquettes.join("/")} · ${m.nom}`).join("   ›   ");
 }
 
+/* ---------------------------- vue complète ----------------------------- */
+function majLibelleVue() {
+  // Le bouton reste toujours visible : la vue complète se quitte en cliquant
+  // un clan ou une famille dans les colonnes.
+  $("voir-tous").hidden = false;
+  $("th-parent").textContent = etat.vueComplete ? "Chemin" : "Parent";
+}
+
+function quitterVueComplete() {
+  if (!etat.vueComplete) return;
+  etat.vueComplete = false;
+  majLibelleVue();
+}
+
+/** « Akesse » se cherche aussi « akéssé » : on ignore casse et accents. */
+function sansAccents(texte) {
+  return String(texte ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function filtrerMembres(membres, recherche) {
+  const terme = sansAccents(recherche);
+  if (!terme) return membres;
+  return membres.filter((m) =>
+    sansAccents(`${m.nom} ${m.prenom ?? ""}`).includes(terme),
+  );
+}
+
+async function basculerVueComplete() {
+  etat.vueComplete = true;
+  majLibelleVue();
+  await chargerMembres();
+  $("fil").textContent = "Toute la base";
+  $("titre-membres").textContent = "Tous les membres";
+}
+
 function statut(texte) {
   const badge = document.createElement("span");
   const actif = texte === "actif";
@@ -219,7 +285,9 @@ async function choisirExercice(exercice) {
   etat.exercice = exercice;
   dessinerAnnees();
   majEntetes();
-  if (etat.famille) await chargerMembres();
+  // En vue complète, il n'y a pas de famille : changer d'exercice doit
+  // recharger la liste entière, pas la vider.
+  if (etat.famille || etat.vueComplete) await chargerMembres();
   else afficherMembres([]);
 }
 
@@ -386,6 +454,7 @@ function reinitialiserApres(niveau) {
     etat.famille = null;
     vide($("liste-familles"), "Sélectionnez une lignée");
   }
+  quitterVueComplete();
   $("recherche").value = "";
   afficherMembres([]);
   $("fil").textContent = fil();
@@ -398,6 +467,7 @@ async function choisirClan(bouton, clan) {
   reinitialiserApres("clan");
 
   const familles = await invoke("grandes_familles", { clanId: clan.id });
+  etat.grandesFamilles = familles;
   remplir(
     "liste-gf",
     familles.map((gf) => ligne(gf.nom, "", (b) => choisirGrandeFamille(b, gf), gf.id)),
@@ -414,6 +484,7 @@ async function choisirGrandeFamille(bouton, gf) {
   reinitialiserApres("grandeFamille");
 
   const lignees = await invoke("lignees", { grandeFamilleId: gf.id });
+  etat.lignees = lignees;
   remplir(
     "liste-lignees",
     lignees.map((l) => ligne(l.nom, "", (b) => choisirLignee(b, l), l.id)),
@@ -430,6 +501,7 @@ async function choisirLignee(bouton, lignee) {
   reinitialiserApres("lignee");
 
   const familles = await invoke("familles", { ligneeId: lignee.id });
+  etat.familles = familles;
 
   // Deux familles homonymes dans la même lignée : on les distingue par leur
   // identifiant et leur effectif.
@@ -489,9 +561,10 @@ const NOEUDS = {
 
 async function chargerClans() {
   const clans = await invoke("clans");
+  etat.clans = clans;
   remplir(
     "liste-clans",
-    clans.map((c) => ligne(c.nom, "", (b) => choisirClan(b, c), c.id)),
+    clans.map((c) => ligne(c.nom, c.description ?? "", (b) => choisirClan(b, c), c.id)),
     "Aucun clan",
   );
   return clans;
@@ -499,6 +572,7 @@ async function chargerClans() {
 
 async function chargerGrandesFamilles(clanId) {
   const liste = await invoke("grandes_familles", { clanId });
+  etat.grandesFamilles = liste;
   remplir(
     "liste-gf",
     liste.map((gf) => ligne(gf.nom, "", (b) => choisirGrandeFamille(b, gf), gf.id)),
@@ -509,6 +583,7 @@ async function chargerGrandesFamilles(clanId) {
 
 async function chargerLignees(grandeFamilleId) {
   const liste = await invoke("lignees", { grandeFamilleId });
+  etat.lignees = liste;
   remplir(
     "liste-lignees",
     liste.map((l) => ligne(l.nom, "", (b) => choisirLignee(b, l), l.id)),
@@ -519,6 +594,7 @@ async function chargerLignees(grandeFamilleId) {
 
 async function chargerFamilles(ligneeId) {
   const liste = await invoke("familles", { ligneeId });
+  etat.familles = liste;
   const occurrences = new Map();
   for (const f of liste) {
     occurrences.set(f.nom, (occurrences.get(f.nom) ?? 0) + 1);
@@ -722,15 +798,17 @@ function afficherMembres(membres) {
   const corps = $("corps-membres");
   corps.replaceChildren();
   ligneSelectionnee = null;
+  membresAffiches = membres;
 
   if (membres.length === 0) {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
     td.colSpan = 8;
     td.className = "vide-table";
-    td.textContent = etat.famille
-      ? "Aucun membre ne correspond à cette recherche."
-      : "Sélectionnez un clan, puis descendez jusqu'à une famille pour afficher ses membres.";
+    td.textContent =
+      etat.vueComplete || etat.famille
+        ? "Aucun membre ne correspond à cette recherche."
+        : "Sélectionnez un clan, puis descendez jusqu'à une famille pour afficher ses membres.";
     tr.append(td);
     corps.append(tr);
   }
@@ -748,7 +826,10 @@ function afficherMembres(membres) {
         fcf(membre.arrieres),
         membre.arrieres > 0 ? "numerique alerte" : "numerique doux",
       ),
-      cellule(membre.parent, membre.parent ? "" : "doux"),
+      cellule(
+        membre.chemin ?? membre.parent,
+        membre.chemin || membre.parent ? "" : "doux",
+      ),
     );
 
     // Le bouton de fiche ne doit pas ouvrir la feuille d'encaissement : le clic
@@ -769,7 +850,7 @@ function afficherMembres(membres) {
     corps.append(tr);
   }
 
-  if (!etat.famille) {
+  if (!etat.famille && !etat.vueComplete) {
     $("compte-membres").textContent = "";
     return;
   }
@@ -788,6 +869,14 @@ function afficherMembres(membres) {
 let minuterie = null;
 
 async function chargerMembres() {
+  if (etat.vueComplete) {
+    const membres = await invoke("tous_membres", {
+      exerciceId: etat.exercice ? etat.exercice.id : null,
+    });
+    afficherMembres(filtrerMembres(membres, $("recherche").value.trim()));
+    $("fil").textContent = "Toute la base";
+    return membres;
+  }
   if (!etat.famille) {
     afficherMembres([]);
     return null;
@@ -801,6 +890,10 @@ async function chargerMembres() {
   afficherMembres(membres);
   return membres;
 }
+
+$("voir-tous").addEventListener("click", () => {
+  basculerVueComplete().catch((e) => afficherErreur(e));
+});
 
 $("recherche").addEventListener("input", () => {
   clearTimeout(minuterie);
@@ -1627,18 +1720,492 @@ $("voile").addEventListener("click", (evenement) => {
   if (evenement.target === $("voile")) fermerFeuille();
 });
 
+/* ------------------------- sauvegardes de la base ---------------------- */
+let restaurationArmee = null;
+
+/** « 10 novembre 2026 à 15:19 » pour `cotisations_2026-11-10_15-19-00.db`. */
+function dateSauvegarde(nom) {
+  const m = nom.match(/^cotisations_(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/);
+  if (!m) return nom;
+  const [, annee, mois, jour, heure, minute] = m;
+  return `${Number(jour)} ${MOIS[Number(mois) - 1]} ${annee} à ${heure}:${minute}`;
+}
+
+function tailleLisible(octets) {
+  if (!octets || octets < 1024) return `${octets ?? 0} o`;
+  return `${nf.format(Math.round(octets / 1024))} Ko`;
+}
+
+function ligneSauvegarde(sauvegarde, recente) {
+  const rangee = document.createElement("div");
+  rangee.className = "sauvegarde";
+  if (recente) rangee.classList.add("recente");
+
+  const texte = document.createElement("div");
+  texte.className = "sauvegarde-texte";
+  const nom = document.createElement("span");
+  nom.className = "sauvegarde-nom";
+  nom.textContent = dateSauvegarde(sauvegarde.nom);
+  const detail = document.createElement("span");
+  detail.className = "sauvegarde-detail";
+  detail.textContent =
+    `${sauvegarde.nom} · ${tailleLisible(sauvegarde.octets)}` +
+    (recente ? " · la plus récente" : "");
+  texte.append(nom, detail);
+
+  const restaurer = document.createElement("button");
+  restaurer.type = "button";
+  restaurer.className = "secondaire restaurer";
+  restaurer.textContent = "Restaurer";
+  restaurer.addEventListener("click", () => {
+    // Deux clics : une restauration remplace le contenu de la base courante.
+    if (restaurationArmee !== sauvegarde.nom) {
+      for (const autre of $("liste-sauvegardes").querySelectorAll(".restaurer")) {
+        autre.textContent = "Restaurer";
+        autre.classList.remove("arme");
+      }
+      restaurationArmee = sauvegarde.nom;
+      restaurer.textContent = "Confirmer";
+      restaurer.classList.add("arme");
+      $("sauvegarde-note").textContent =
+        `Restaurer la copie du ${dateSauvegarde(sauvegarde.nom)} ? L'état actuel est d'abord ` +
+        "sauvegardé, puis tout ce qui a été saisi depuis cette copie disparaît.";
+      return;
+    }
+    restaurationArmee = null;
+    restaurerSauvegarde(sauvegarde.nom);
+  });
+
+  rangee.append(texte, restaurer);
+  return rangee;
+}
+
+async function chargerSauvegardes() {
+  const liste = await invoke("sauvegardes");
+  const conteneur = $("liste-sauvegardes");
+  conteneur.replaceChildren();
+  if (liste.length === 0) {
+    vide(conteneur, "Aucune sauvegarde pour l'instant.");
+    return;
+  }
+  for (const [index, sauvegarde] of liste.entries()) {
+    conteneur.append(ligneSauvegarde(sauvegarde, index === 0));
+  }
+}
+
+async function ouvrirSauvegardes() {
+  effacerErreur();
+  restaurationArmee = null;
+  desarmerPurges();
+  $("sauvegarder-base").disabled = false;
+  $("sauvegarder-base").textContent = "Sauvegarder maintenant";
+  $("sauvegarde-note").textContent =
+    "Seules les cinq copies de l'application sont conservées : à chaque nouvelle " +
+    "sauvegarde, la plus ancienne est effacée. Les archives laissées dans ce dossier " +
+    "par l'ancienne version ne sont ni listées ni supprimées.";
+  $("voile-sauvegarde").hidden = false;
+  try {
+    await chargerSauvegardes();
+  } catch (erreur) {
+    $("sauvegarde-note").textContent = String(erreur);
+  }
+}
+
+async function sauvegarderMaintenant() {
+  const bouton = $("sauvegarder-base");
+  bouton.disabled = true;
+  bouton.textContent = "Sauvegarde…";
+  try {
+    const faite = await invoke("sauvegarder_base");
+    $("sauvegarde-note").textContent =
+      `Copie enregistrée : ${faite.nom} — ${dateSauvegarde(faite.nom)} (${tailleLisible(faite.octets)}).`;
+    await chargerSauvegardes();
+  } catch (erreur) {
+    $("sauvegarde-note").textContent = String(erreur);
+  } finally {
+    bouton.disabled = false;
+    bouton.textContent = "Sauvegarder maintenant";
+  }
+}
+
+/** Après une restauration, rien de ce qui est affiché ne doit survivre. */
+async function rechargerTout() {
+  fermerFeuille();
+  fermerFiche();
+  fermerFormulaire();
+  viderRecu();
+  membreCourant = null;
+  ligneSelectionnee = null;
+  quitterVueComplete();
+  $("recherche").value = "";
+  await chargerExercices();
+  await rechargerHierarchie();
+}
+
+async function restaurerSauvegarde(nom) {
+  $("sauvegarde-note").textContent = `Restauration de ${nom}…`;
+  try {
+    const secours = await invoke("restaurer_base", { nom });
+    await rechargerTout();
+    $("sauvegarde-note").textContent =
+      `Base restaurée depuis ${nom}. L'état précédent est conservé dans ${secours.nom}.`;
+  } catch (erreur) {
+    $("sauvegarde-note").textContent = String(erreur);
+  }
+  await chargerSauvegardes().catch(() => {});
+}
+
+/* --------------------------------- purge -------------------------------- */
+let purgeArmee = null;
+
+const PURGES = {
+  cotisations: {
+    id: "purge-cotisations",
+    libelle: "Effacer les cotisations",
+    question: "Effacer tous les versements ? Toutes les échéances redeviendront dues.",
+  },
+  hierarchie: {
+    id: "purge-hierarchie",
+    libelle: "Effacer membres et hiérarchie",
+    question:
+      "Effacer les membres, les familles et les clans, avec leurs versements ?",
+  },
+  tout: {
+    id: "purge-tout",
+    libelle: "Tout effacer",
+    question: "Tout effacer : membres, hiérarchie et versements ?",
+  },
+};
+
+function desarmerPurges() {
+  purgeArmee = null;
+  for (const reglage of Object.values(PURGES)) {
+    $(reglage.id).textContent = reglage.libelle;
+    $(reglage.id).classList.remove("arme");
+  }
+}
+
+/** « Effacé : 227 versements, 1 805 affectations. » — on dit ce qui est parti. */
+function resumePurge(bilan) {
+  const morceaux = [];
+  const ajouter = (nombre, singulier, plurielMot) => {
+    if (nombre > 0) morceaux.push(`${nombre} ${nombre > 1 ? plurielMot : singulier}`);
+  };
+  ajouter(bilan.paiements, "versement", "versements");
+  ajouter(bilan.affectations, "affectation", "affectations");
+  ajouter(bilan.membres, "membre", "membres");
+  ajouter(bilan.familles, "famille", "familles");
+  ajouter(bilan.lignees, "lignée", "lignées");
+  ajouter(bilan.grandesFamilles, "grande famille", "grandes familles");
+  ajouter(bilan.clans, "clan", "clans");
+  return morceaux.length === 0 ? "Rien à effacer." : `Effacé : ${morceaux.join(", ")}.`;
+}
+
+async function purgerBase(portee) {
+  const reglage = PURGES[portee];
+  if (!reglage) return;
+  const bouton = $(reglage.id);
+
+  // Deux clics : la première fois on annonce, la seconde on efface.
+  if (purgeArmee !== portee) {
+    desarmerPurges();
+    purgeArmee = portee;
+    bouton.textContent = "Confirmer…";
+    bouton.classList.add("arme");
+    $("sauvegarde-note").textContent =
+      `${reglage.question} Cliquez à nouveau pour confirmer : une copie de sécurité ` +
+      "est prise juste avant.";
+    return;
+  }
+
+  desarmerPurges();
+  bouton.disabled = true;
+  try {
+    const faite = await invoke("purger_base", { portee });
+    await rechargerTout();
+    const resume = resumePurge(faite.bilan);
+    $("sauvegarde-note").textContent = `${resume} Copie de sécurité : ${faite.copie.nom}.`;
+    afficherInfo(`${resume} Copie de sécurité : ${faite.copie.nom}.`);
+  } catch (erreur) {
+    $("sauvegarde-note").textContent = String(erreur);
+  } finally {
+    bouton.disabled = false;
+    desarmerPurges();
+    await chargerSauvegardes().catch(() => {});
+  }
+}
+
+for (const portee of Object.keys(PURGES)) {
+  $(PURGES[portee].id).addEventListener("click", () => {
+    purgerBase(portee).catch((e) => afficherErreur(e));
+  });
+}
+
+$("ouvrir-sauvegarde").addEventListener("click", () => {
+  ouvrirSauvegardes().catch((e) => afficherErreur(e));
+});
+$("sauvegarder-base").addEventListener("click", () => {
+  sauvegarderMaintenant().catch((e) => afficherErreur(e));
+});
+for (const id of ["fermer-sauvegarde", "annuler-sauvegarde"]) {
+  $(id).addEventListener("click", () => {
+    $("voile-sauvegarde").hidden = true;
+    restaurationArmee = null;
+    desarmerPurges();
+  });
+}
+$("voile-sauvegarde").addEventListener("click", (evenement) => {
+  if (evenement.target === $("voile-sauvegarde")) {
+    $("voile-sauvegarde").hidden = true;
+    restaurationArmee = null;
+    desarmerPurges();
+  }
+});
+
+/* ------------------------------ exports CSV ---------------------------- */
+let membresAffiches = [];
+
+/** Montant nu : un « 1 807 000 » serait du texte pour Excel. */
+const montantCsv = (valeur) => String(valeur ?? 0);
+
+/** « 2026 », ou « (tous exercices) » quand le tableau additionne les années. */
+function suffixeExercice() {
+  return etat.exercice ? ` ${nomExercice(etat.exercice)}` : " (tous exercices)";
+}
+
+/** Écrit une liste affichée en CSV et donne son chemin dans le bandeau. */
+async function exporterCsv(nom, colonnes, lignes) {
+  if (lignes.length === 0) {
+    afficherErreur("Cette liste est vide : il n'y a rien à exporter.");
+    return;
+  }
+  try {
+    const fait = await invoke("exporter_csv", { nom, colonnes, lignes });
+    afficherInfo(
+      `${pluriel(fait.lignes, "ligne")} exportée${fait.lignes > 1 ? "s" : ""} : ${fait.chemin}`,
+    );
+  } catch (erreur) {
+    afficherErreur(erreur);
+  }
+}
+
+function exporterMembres() {
+  const suffixe = suffixeExercice();
+  const colonnes = [
+    "Nom",
+    "Prénom",
+    "Statut",
+    `Payé${suffixe}`,
+    `Reste${suffixe}`,
+    `Arriérés${suffixe}`,
+    etat.vueComplete ? "Chemin" : "Parent",
+  ];
+  const lignes = membresAffiches.map((m) => [
+    m.nom,
+    m.prenom ?? "",
+    m.statut,
+    montantCsv(m.paye),
+    montantCsv(m.reste),
+    montantCsv(m.arrieres),
+    m.chemin ?? m.parent ?? "",
+  ]);
+  return exporterCsv("membres", colonnes, lignes);
+}
+
+/** Liste complète : toutes les familles, avec le chemin de chaque membre. */
+async function exporterTousLesMembres() {
+  const suffixe = suffixeExercice();
+  const membres = await invoke("tous_membres", {
+    exerciceId: etat.exercice ? etat.exercice.id : null,
+  });
+  const colonnes = [
+    "Chemin",
+    "Nom",
+    "Prénom",
+    "Statut",
+    `Payé${suffixe}`,
+    `Reste${suffixe}`,
+    `Arriérés${suffixe}`,
+    "Parent",
+  ];
+  const lignes = membres.map((m) => [
+    m.chemin,
+    m.nom,
+    m.prenom ?? "",
+    m.statut,
+    montantCsv(m.paye),
+    montantCsv(m.reste),
+    montantCsv(m.arrieres),
+    m.parent ?? "",
+  ]);
+  return exporterCsv("membres-tous", colonnes, lignes);
+}
+
+/**
+ * Feuille d'impression d'une liste : même mécanisme que le reçu, `@media print`
+ * ne laisse visible que `#impression`. Ce qui est imprimé est ce qui est
+ * affiché : famille sélectionnée, recherche et exercice compris.
+ */
+function imprimerListeMembres() {
+  if (membresAffiches.length === 0) {
+    afficherErreur("Aucun membre affiché : choisissez une famille avant d'imprimer.");
+    return;
+  }
+
+  const boite = $("impression");
+  boite.replaceChildren();
+
+  const entete = document.createElement("div");
+  entete.className = "impression-entete";
+  const titre = document.createElement("h1");
+  titre.textContent = "Fonds d'Entraide";
+  const sousTitre = document.createElement("p");
+  sousTitre.textContent = "Liste des membres";
+  entete.append(titre, sousTitre);
+
+  const famille = document.createElement("p");
+  famille.className = "impression-membre";
+  famille.textContent = etat.famille ? etat.famille.nom : "Tous les membres";
+  const chemin = document.createElement("p");
+  chemin.className = "impression-chemin";
+  chemin.textContent = fil();
+
+  const exercice = etat.exercice
+    ? `Exercice ${nomExercice(etat.exercice)}`
+    : "Tous exercices";
+  const jour = aujourdhui().split("-").reverse().join("/");
+  const infos = document.createElement("p");
+  infos.className = "impression-infos";
+  infos.textContent =
+    `${exercice} · ${pluriel(membresAffiches.length, "membre")}` +
+    ` affiché${membresAffiches.length > 1 ? "s" : ""} · imprimé le ${jour}`;
+
+  const table = document.createElement("table");
+  table.className = "impression-table";
+  const thead = document.createElement("thead");
+  const tete = document.createElement("tr");
+  for (const [texte, classe] of [
+    ["Nom", ""],
+    ["Prénom", ""],
+    ["Statut", ""],
+    ["Payé", "droite"],
+    ["Reste", "droite"],
+    ["Arriérés", "droite"],
+    [etat.vueComplete ? "Chemin" : "Parent", ""],
+  ]) {
+    const th = document.createElement("th");
+    th.textContent = texte;
+    if (classe) th.className = classe;
+    tete.append(th);
+  }
+  thead.append(tete);
+
+  const corps = document.createElement("tbody");
+  for (const membre of membresAffiches) {
+    const tr = document.createElement("tr");
+    tr.append(
+      cellule(membre.nom),
+      cellule(membre.prenom),
+      cellule(membre.statut),
+      cellule(fcf(membre.paye), "droite"),
+      cellule(fcf(membre.reste), "droite"),
+      cellule(fcf(membre.arrieres), "droite"),
+      cellule(membre.chemin ?? membre.parent),
+    );
+    corps.append(tr);
+  }
+  table.append(thead, corps);
+
+  const paye = membresAffiches.reduce((somme, m) => somme + m.paye, 0);
+  const reste = membresAffiches.reduce((somme, m) => somme + m.reste, 0);
+  const arrieres = membresAffiches.reduce((somme, m) => somme + m.arrieres, 0);
+  const total = document.createElement("p");
+  total.className = "impression-total";
+  total.textContent =
+    `Total payé ${fcf(paye)} · reste ${fcf(reste)} · arriérés ${fcf(arrieres)}`;
+
+  boite.append(entete, famille, chemin, infos, table, total);
+  window.print?.();
+}
+
+function exporterClans() {
+  return exporterCsv(
+    "clans",
+    ["ID", "Nom", "Description"],
+    etat.clans.map((c) => [montantCsv(c.id), c.nom, c.description ?? ""]),
+  );
+}
+
+function exporterGrandesFamilles() {
+  return exporterCsv(
+    "grandes-familles",
+    ["ID", "Nom", "Clan"],
+    etat.grandesFamilles.map((g) => [montantCsv(g.id), g.nom, etat.clan?.nom ?? ""]),
+  );
+}
+
+function exporterLignees() {
+  return exporterCsv(
+    "lignees",
+    ["ID", "Nom", "Grande famille"],
+    etat.lignees.map((l) => [montantCsv(l.id), l.nom, etat.grandeFamille?.nom ?? ""]),
+  );
+}
+
+function exporterFamilles() {
+  return exporterCsv(
+    "familles",
+    ["ID", "Nom", "Membres"],
+    etat.familles.map((f) => [montantCsv(f.id), f.nom, montantCsv(f.membres)]),
+  );
+}
+
+/* ---------------------------- menu « Plus » ----------------------------- */
+function fermerMenuPlus() {
+  $("menu-plus").hidden = true;
+  $("ouvrir-plus").classList.remove("actif");
+}
+
+$("ouvrir-plus").addEventListener("click", (evenement) => {
+  evenement?.stopPropagation?.();
+  const ouvert = $("menu-plus").hidden;
+  $("menu-plus").hidden = !ouvert;
+  if (ouvert) $("ouvrir-plus").classList.add("actif");
+  else $("ouvrir-plus").classList.remove("actif");
+});
+
+for (const [id, action] of [
+  ["exporter-membres", exporterMembres],
+  ["exporter-tous", exporterTousLesMembres],
+  ["imprimer-membres", () => imprimerListeMembres()],
+]) {
+  $(id).addEventListener("click", () => {
+    fermerMenuPlus();
+    Promise.resolve(action()).catch((e) => afficherErreur(e));
+  });
+}
+
+// Les colonnes de la hiérarchie gardent leur bouton ⤓ direct.
+for (const [id, action] of [
+  ["exporter-clans", exporterClans],
+  ["exporter-gf", exporterGrandesFamilles],
+  ["exporter-lignees", exporterLignees],
+  ["exporter-familles", exporterFamilles],
+]) {
+  $(id).addEventListener("click", () => {
+    action().catch((e) => afficherErreur(e));
+  });
+}
+
 /* -------------------------------- départ ------------------------------- */
 async function demarrer() {
   try {
     effacerErreur();
     await chargerResume();
     await chargerExercices();
-    const clans = await invoke("clans");
-    remplir(
-      "liste-clans",
-      clans.map((c) => ligne(c.nom, c.description ?? "", (b) => choisirClan(b, c))),
-      "Aucun clan",
-    );
+    // Passer par chargerClans garde etat.clans rempli : l'export « clans »
+    // et la vue complète s'appuient dessus.
+    await chargerClans();
     vide($("liste-gf"), "Sélectionnez un clan");
     vide($("liste-lignees"), "Sélectionnez une grande famille");
     vide($("liste-familles"), "Sélectionnez une lignée");

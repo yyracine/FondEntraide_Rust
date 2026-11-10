@@ -34,6 +34,7 @@
         <div class="colonne-tete">
           <h2>Clans</h2>
           <div class="colonne-outils">
+            <button type="button" class="outil" id="exporter-clans" title="Exporter la liste en CSV">⤓</button>
             <button type="button" class="outil" id="ajouter-clan" title="Ajouter un clan">+</button>
             <button type="button" class="outil" id="renommer-clan" title="Renommer le clan">✎</button>
             <button type="button" class="outil" id="supprimer-clan" title="Supprimer le clan">✕</button>
@@ -45,6 +46,7 @@
         <div class="colonne-tete">
           <h2>Grandes familles</h2>
           <div class="colonne-outils">
+            <button type="button" class="outil" id="exporter-gf" title="Exporter la liste en CSV">⤓</button>
             <button type="button" class="outil" id="ajouter-gf" title="Ajouter une grande famille">+</button>
             <button type="button" class="outil" id="renommer-gf" title="Renommer la grande famille">✎</button>
             <button type="button" class="outil" id="supprimer-gf" title="Supprimer la grande famille">✕</button>
@@ -56,6 +58,7 @@
         <div class="colonne-tete">
           <h2>Lignées</h2>
           <div class="colonne-outils">
+            <button type="button" class="outil" id="exporter-lignees" title="Exporter la liste en CSV">⤓</button>
             <button type="button" class="outil" id="ajouter-lignee" title="Ajouter une lignée">+</button>
             <button type="button" class="outil" id="renommer-lignee" title="Renommer la lignée">✎</button>
             <button type="button" class="outil" id="supprimer-lignee" title="Supprimer la lignée">✕</button>
@@ -67,6 +70,7 @@
         <div class="colonne-tete">
           <h2>Familles</h2>
           <div class="colonne-outils">
+            <button type="button" class="outil" id="exporter-familles" title="Exporter la liste en CSV">⤓</button>
             <button type="button" class="outil" id="ajouter-famille" title="Ajouter une famille">+</button>
             <button type="button" class="outil" id="renommer-famille" title="Renommer la famille">✎</button>
             <button type="button" class="outil" id="supprimer-famille" title="Supprimer la famille">✕</button>
@@ -89,10 +93,37 @@
             placeholder="Rechercher un nom ou un prénom…"
             autocomplete="off"
           />
+          <button
+            type="button"
+            class="secondaire"
+            id="voir-tous"
+            title="Afficher les membres de toutes les familles"
+          >
+            Voir tous
+          </button>
           <button type="button" class="secondaire" id="nouveau-membre">
             Nouveau membre
           </button>
           <button type="button" class="secondaire" id="changer-tarif">Tarif</button>
+          <button type="button" class="secondaire" id="ouvrir-sauvegarde">
+            Sauvegardes
+          </button>
+          <div class="menu-plus">
+            <button type="button" class="secondaire" id="ouvrir-plus">
+              Plus ▾
+            </button>
+            <div class="menu-plus-liste" id="menu-plus" hidden>
+              <button type="button" id="exporter-membres">
+                Exporter la liste affichée (CSV)
+              </button>
+              <button type="button" id="exporter-tous">
+                Tout exporter (CSV)
+              </button>
+              <button type="button" id="imprimer-membres">
+                Imprimer la liste affichée
+              </button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="annees" id="annees"></div>
@@ -106,7 +137,7 @@
               <th class="droite" id="th-paye">Payé</th>
               <th class="droite" id="th-reste">Reste</th>
               <th class="droite" id="th-arrieres">Arriérés</th>
-              <th>Parent</th>
+              <th id="th-parent">Parent</th>
               <th>Fiche</th>
             </tr>
           </thead>
@@ -219,6 +250,46 @@
             <button type="button" class="secondaire" id="annuler-tarif">Fermer</button>
             <button type="button" class="primaire" id="appliquer-tarif">
               Appliquer le tarif
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="voile" id="voile-sauvegarde" hidden>
+      <div class="feuille petite" role="dialog" aria-modal="true" aria-labelledby="sauvegarde-titre">
+        <header class="feuille-entete">
+          <div>
+            <h3 id="sauvegarde-titre">Sauvegardes</h3>
+          </div>
+          <button type="button" class="fermer" id="fermer-sauvegarde" aria-label="Fermer">×</button>
+        </header>
+        <div class="feuille-corps">
+          <p class="note" id="sauvegarde-note"></p>
+          <div class="sauvegardes" id="liste-sauvegardes"></div>
+          <div class="purge">
+            <h4>Purger la base</h4>
+            <p class="note">
+              Une copie de sécurité est prise automatiquement avant chaque purge.
+              Les exercices et leurs tarifs restent en place, et les numéros de
+              reçus déjà utilisés ne sont jamais réattribués.
+            </p>
+            <div class="purge-actions">
+              <button type="button" class="danger" id="purge-cotisations">
+                Effacer les cotisations
+              </button>
+              <button type="button" class="danger" id="purge-hierarchie">
+                Effacer membres et hiérarchie
+              </button>
+              <button type="button" class="danger" id="purge-tout">
+                Tout effacer
+              </button>
+            </div>
+          </div>
+          <div class="actions">
+            <button type="button" class="secondaire" id="annuler-sauvegarde">Fermer</button>
+            <button type="button" class="primaire" id="sauvegarder-base">
+              Sauvegarder maintenant
             </button>
           </div>
         </div>
