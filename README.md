@@ -63,7 +63,17 @@ Le portage vit dans `core/` (métier, testé par `cargo test`), `src-tauri/`
 
 Le mode d'emploi pas à pas du caissier est dans
 [`GUIDE_UTILISATEUR.md`](GUIDE_UTILISATEUR.md) : encaisser, imprimer un reçu,
-sauvegarder, restaurer, purger.
+sauvegarder, restaurer, purger. L'application y donne accès par le bouton
+**Aide** : la fiche et le guide s'affichent dans l'application, avec leur propre
+bouton d'impression.
+
+Les deux documents sont compilés dans le binaire : la feuille est lue depuis
+`aide-memoire.html`, le guide depuis `ui/aide/guide.html`, généré à partir du
+Markdown. Après une modification du guide, relancer :
+
+```
+node scripts/docs.mjs
+```
 
 ### Mode démonstration
 

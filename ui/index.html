@@ -108,6 +108,7 @@
           <button type="button" class="secondaire" id="ouvrir-sauvegarde">
             Sauvegardes
           </button>
+          <button type="button" class="secondaire" id="ouvrir-aide">Aide</button>
           <div class="menu-plus">
             <button type="button" class="secondaire" id="ouvrir-plus">
               Plus ▾
@@ -304,6 +305,38 @@
             <button type="button" class="primaire" id="sauvegarder-base">
               Sauvegarder maintenant
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="voile" id="voile-aide" hidden>
+      <div class="feuille aide" role="dialog" aria-modal="true" aria-labelledby="aide-titre">
+        <header class="feuille-entete">
+          <div>
+            <h3 id="aide-titre">Aide</h3>
+            <p class="fil" id="aide-fil">Choisissez un document</p>
+          </div>
+          <div class="fiche-outils">
+            <button type="button" class="secondaire" id="imprimer-aide" hidden>
+              Imprimer
+            </button>
+            <button type="button" class="fermer" id="fermer-aide" aria-label="Fermer">×</button>
+          </div>
+        </header>
+        <div class="feuille-corps">
+          <div class="purge-actions">
+            <button type="button" class="secondaire" id="lire-aide-memoire">
+              Aide-mémoire (une page)
+            </button>
+            <button type="button" class="secondaire" id="lire-guide">
+              Guide d'utilisation
+            </button>
+          </div>
+          <p class="note" id="aide-note"></p>
+          <iframe id="aide-page" class="aide-page" title="Document d'aide" hidden></iframe>
+          <div class="actions">
+            <button type="button" class="secondaire" id="annuler-aide">Fermer</button>
           </div>
         </div>
       </div>

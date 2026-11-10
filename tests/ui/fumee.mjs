@@ -319,6 +319,8 @@ const reponses = {
   ],
   mode_demo: false,
   lancer_demo: null,
+  lire_aide: ({ doc }) =>
+    `<!doctype html><html><body><h1>${doc === "guide" ? "Guide du caissier" : "Encaisser en 6 gestes"}</h1></body></html>`,
   clans: [{ id: 2, nom: "YAOCRE", description: null }],
   grandes_familles: [{ id: 7, nom: "YAOCRE APPIA", clan_id: 2 }],
   lignees: [{ id: 18, nom: "YAOCRE APPIA", grande_famille_id: 7 }],
@@ -342,7 +344,8 @@ const reponses = {
 const invoke = async (commande, args) => {
   appels.push({ commande, args });
   if (!(commande in reponses)) throw new Error(`commande inconnue : ${commande}`);
-  return reponses[commande];
+  const reponse = reponses[commande];
+  return typeof reponse === "function" ? reponse(args) : reponse;
 };
 
 process.on("unhandledRejection", (e) => erreurs.push(e));
@@ -950,6 +953,28 @@ $("ouvrir-demo").click();
 await attendre();
 assert.ok(dernierAppel("lancer_demo"), "la démonstration est lancée");
 assert.match($("sauvegarde-note").textContent, /nouvelle fenêtre/);
+
+// 13 quater. aide : les documents embarqués s'affichent dans l'application
+$("ouvrir-aide").click();
+assert.equal($("voile-aide").hidden, false, "l'écran d'aide s'ouvre");
+assert.equal($("aide-page").hidden, true, "aucun document au départ");
+$("lire-guide").click();
+await attendre();
+assert.equal(dernierAppel("lire_aide")?.args.doc, "guide");
+assert.match($("aide-page").srcdoc, /Guide du caissier/, "le guide est rendu");
+assert.equal($("aide-page").hidden, false);
+assert.equal($("imprimer-aide").hidden, false, "le bouton d'impression apparaît");
+assert.match($("aide-fil").textContent, /Guide d'utilisation/);
+
+$("lire-aide-memoire").click();
+await attendre();
+assert.equal(dernierAppel("lire_aide")?.args.doc, "aide-memoire");
+assert.match($("aide-page").srcdoc, /Encaisser en 6 gestes/);
+
+$("fermer-aide").click();
+assert.equal($("voile-aide").hidden, true, "l'écran se referme");
+assert.equal($("aide-page").srcdoc, "", "le document est déchargé");
+assert.equal($("imprimer-aide").hidden, true);
 
 // 14. impression de la liste affichée : même feuille que le reçu, avec un
 //     en-tête daté et une ligne de totaux.

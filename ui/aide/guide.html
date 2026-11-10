@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Guide d'utilisation — Fonds d'Entraide</title>
+    <style>
+:root {
+  --encre: #1d2321;
+  --doux: #5b6764;
+  --vert: #2f6f5e;
+  --trait: #d3dbd8;
+  --fond: #f4f7f6;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: #eef1f0;
+  color: var(--encre);
+  font: 15px/1.6 "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+.barre {
+  position: sticky;
+  top: 0;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 8px 18px;
+  background: #1d2321;
+}
+.barre button {
+  padding: 6px 16px;
+  border: 1px solid #7fb9a8;
+  border-radius: 6px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.barre span { margin-right: auto; color: #b9c6c2; font-size: 12.5px; }
+main {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 28px 32px 48px;
+  background: #fff;
+  min-height: 100vh;
+}
+h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: 0.2px; }
+h1 + p { margin-top: 0; color: var(--doux); }
+h2 {
+  margin: 30px 0 10px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--trait);
+  font-size: 19px;
+  color: var(--vert);
+}
+h3 { margin: 20px 0 8px; font-size: 16px; }
+p { margin: 10px 0; }
+ul, ol { margin: 10px 0; padding-left: 24px; }
+li { margin: 5px 0; }
+li > p { margin: 4px 0; }
+code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--fond);
+  font: 13.5px/1 ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+pre {
+  padding: 12px 14px;
+  border: 1px solid var(--trait);
+  border-radius: 8px;
+  background: var(--fond);
+  overflow-x: auto;
+}
+pre code { padding: 0; background: none; }
+blockquote {
+  margin: 14px 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--vert);
+  background: var(--fond);
+}
+blockquote p { margin: 0; }
+table {
+  width: 100%;
+  margin: 14px 0;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+th, td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--trait);
+  text-align: left;
+  vertical-align: top;
+}
+th { background: var(--fond); font-weight: 650; }
+hr { margin: 26px 0; border: 0; border-top: 1px solid var(--trait); }
+a { color: var(--vert); }
+@media print {
+  @page { size: A4; margin: 16mm; }
+  body { background: #fff; font-size: 10.5pt; }
+  .barre { display: none; }
+  main { max-width: none; padding: 0; min-height: 0; }
+  h2 { break-after: avoid; page-break-after: avoid; }
+  pre, table, blockquote { break-inside: avoid; page-break-inside: avoid; }
+}
+</style>
+  </head>
+  <body>
+    <div class="barre">
+      <span>Guide d'utilisation — Fonds d'Entraide</span>
+      <button type="button" onclick="window.print()">Imprimer</button>
+    </div>
+    <main>
+<h1>Guide du caissier — Fonds d'Entraide</h1>
+<p>Ce guide décrit l'application telle qu'elle se présente : encaisser un versement, imprimer un reçu, sauvegarder, restaurer, purger. Il s'adresse à la personne qui tient la caisse, pas au développeur.</p>
+<blockquote><strong>À retenir avant tout</strong> : vos données vivent dans un seul fichier, à côté de l'application (<code>cotisations_v2.db</code>). Une copie de sauvegarde (<code>sauvegardes/</code>) et les exports CSV (<code>exports/</code>) sont également stockés là. Rien ne part sur Internet.</blockquote>
+<hr>
+<h2>1. Ouvrir l'application</h2>
+<p>Double-cliquez sur le raccourci « Fonds d'Entraide ». La fenêtre s'ouvre sur la liste des clans, avec les compteurs en haut à droite : nombre de clans, de familles, de membres et total encaissé.</p>
+<p>S'il n'y a pas de raccourci, lancez <code>fonds-app.exe</code> : l'application cherche la base à côté de l'exécutable, puis à la racine du projet.</p>
+<p>Si Windows affiche « Windows a protégé votre PC » au premier lancement de l'installeur, c'est que le fichier n'est pas signé : cliquez <strong>Informations complémentaires</strong>, puis <strong>Exécuter quand même</strong>. L'avertissement disparaîtra seul si le fichier devient un jour signé et connu de Windows.</p>
+<h3>Mode démonstration</h3>
+<p>Pour essayer sans risque : <strong>Sauvegardes → Démonstration → « Ouvrir une démonstration »</strong>. Une seconde fenêtre s'ouvre sur une base fictive (2 clans, 5 familles, 15 membres, quelques versements) recréée à chaque lancement. Elle porte le bandeau « Base de démonstration ». Fermez-la d'un clic sur la croix : votre base réelle n'a jamais été ouverte.</p>
+<hr>
+<h2>2. Se repérer sur l'écran</h2>
+<p>De haut en bas :</p>
+<ol><li><strong>Recherche rapide</strong> (« Encaisser pour un membre : nom ou prénom… ») : sert à trouver quelqu'un sans parcourir la hiérarchie.</li><li><strong>Quatre colonnes</strong> : Clans → Grandes familles → Lignées → Familles. Quand un niveau ne contient qu'un seul élément, l'application descend toute seule. Les boutons de chaque colonne : <code>⤓</code> exporter en CSV, <code>+</code> ajouter, <code>✎</code> renommer, <code>✕</code> supprimer (deux clics pour confirmer).</li><li><strong>Barre des membres</strong> : recherche locale, <strong>Voir tous</strong>, <strong>Nouveau membre</strong>, <strong>Tarif</strong>, <strong>Sauvegardes</strong>, <strong>Plus ▾</strong>.</li><li><strong>Puces d'exercice</strong> : <code>Tous · 2026 · 2025 · 2024</code>. L'exercice en cours est sélectionné par défaut.</li><li><strong>Tableau des membres</strong> : Nom, Prénom, Statut, Payé, Reste, Arriérés, Parent, et un bouton <strong>Fiche</strong> par ligne. La ligne du bas rappelle le nombre de membres affichés et les totaux.</li></ol>
+<p><strong>Reste</strong> = ce qui reste dû sur l'exercice choisi. <strong>Arriérés</strong> = la part de ce reste dont l'échéance est déjà passée.</p>
+<hr>
+<h2>3. Encaisser un versement</h2>
+<h3>Par la hiérarchie</h3>
+<ol><li>Cliquez un clan, puis une grande famille, une lignée, une famille.</li><li>Le tableau affiche les membres de la famille.</li><li><strong>Cliquez la ligne du membre</strong> (pas le bouton Fiche) : la feuille « Encaisser » s'ouvre.</li></ol>
+<h3>Par la recherche</h3>
+<ol><li>Tapez un nom ou un prénom dans la recherche en haut.</li><li>Cliquez le résultat : la feuille s'ouvre directement, sans changer de famille.</li></ol>
+<h3>Dans la feuille</h3>
+<ul><li>L'en-tête rappelle le membre, son chemin dans la hiérarchie et le périmètre : « Exercice 2026 · X F dus sur le périmètre ».</li><li>Les soldes de l'exercice sont affichés (dû, payé, reste, arriérés).</li><li>Saisissez le <strong>Montant (FCFA)</strong> — un nombre entier, sans espace ni virgule.</li><li>Vérifiez la <strong>Date du versement</strong> (aujourd'hui par défaut).</li><li>Choisissez le <strong>Mode</strong> : Espèces, Mobile money, Virement, Chèque, Autre.</li><li>L'aperçu <strong>Répartition</strong> se met à jour à la frappe : il montre les mois que ce versement va couvrir et le reliquat éventuel.</li><li>Cliquez <strong>Enregistrer le versement</strong>.</li></ul>
+<p>Le versement part toujours au mois échu le plus ancien encore impayé, puis remonte. Il ne peut pas dépasser le dû : si vous saisissez 5 000 F pour 3 mois de 1 000 F, l'enregistrement est refusé avec le message « 5 000 F ne peuvent pas être affectés : 2 000 F resteraient non ventilés ». Diminuez le montant ou choisissez un autre exercice dans la feuille.</p>
+<p>Après l'enregistrement, le reçu s'affiche sous le formulaire : numéro, montant, et la liste des mois couverts. Les soldes du tableau et les compteurs du haut se mettent à jour aussitôt.</p>
+<h3>Si vous vous êtes trompé</h3>
+<p>Ouvrez la <strong>Fiche</strong> du membre (bouton à droite de la ligne), puis dans « Versements », cliquez <strong>Annuler</strong> : le bouton devient <strong>Confirmer l'annulation</strong>, un second clic supprime le versement et libère les mois. Le numéro de reçu, lui, reste consommé : il ne sera jamais réattribué.</p>
+<hr>
+<h2>4. Imprimer un reçu</h2>
+<ol><li>Enregistrez le versement : le reçu apparaît dans la feuille.</li><li>Cliquez <strong>Imprimer le reçu</strong>.</li><li>La fenêtre d'impression de Windows s'ouvre : choisissez l'imprimante, puis imprimez.</li></ol>
+<p>La feuille imprimée porte le nom du Fonds, le membre, son chemin, le numéro de reçu, la date du versement, le mode, le montant, les mois couverts et le total. Réimprimer un reçu donne toujours le <strong>même numéro</strong> : c'est le même document.</p>
+<p>Pour imprimer une <strong>liste</strong> de membres : choisissez la famille et l'exercice, puis <strong>Plus ▾ → Imprimer la liste affichée</strong>. Ce qui est imprimé est exactement ce qui est affiché — famille, recherche et exercice compris — avec une ligne de totaux en bas.</p>
+<hr>
+<h2>5. Changer d'exercice et lire les arriérés</h2>
+<p>Les puces <code>Tous · 2026 · 2025 · 2024</code> changent le périmètre des montants :</p>
+<ul><li>une année : Payé, Reste et Arriérés ne portent que sur cette campagne ;</li><li><strong>Tous</strong> : les trois campagnes s'additionnent — utile pour voir la dette globale d'un membre.</li></ul>
+<p>Changer d'exercice ne modifie aucune donnée : c'est une façon de regarder.</p>
+<hr>
+<h2>6. Voir toute la liste des membres</h2>
+<p><strong>Voir tous</strong> affiche les 599 membres dans un seul tableau, avec une colonne <strong>Chemin</strong> (« clan › grande famille › lignée › famille ») qui distingue les homonymes. La recherche porte alors sur toute la base.</p>
+<p>Pour revenir au tableau d'une famille, cliquez un clan ou une famille dans les colonnes de gauche. Le bouton « Voir tous » reste visible en permanence.</p>
+<p><strong>Exports CSV</strong> (ouvrables dans Excel) : <strong>Plus ▾ → « Exporter la liste affichée »</strong> ou <strong>« Tout exporter »</strong>. Le bandeau de confirmation donne le chemin du fichier, dans le dossier <code>exports/</code>. Les montants y sont des nombres nus, séparés par des points-virgules.</p>
+<hr>
+<h2>7. Modifier les membres et la hiérarchie</h2>
+<ul><li><strong>Nouveau membre</strong> : nom obligatoire, prénom, téléphone, sexe, statut, ordre dans la fratrie, dates d'entrée et de sortie, parent (limité à la même famille), notes. Une date de sortie arrête les cotisations après cette date.</li><li><strong>Modifier</strong> (dans la Fiche) : mêmes champs. <strong>Supprimer le membre</strong> est refusé si la personne a des descendants ou des versements — c'est volontaire, pour ne pas effacer d'argent par accident.</li><li>Colonnes : <code>+</code> crée, <code>✎</code> renomme, <code>✕</code> supprime en deux clics. Un niveau qui contient encore des enfants ne peut pas être supprimé.</li><li>Changer un membre de famille alors que son parent reste dans l'ancienne est refusé, avec un message clair.</li></ul>
+<h2>8. Changer le tarif</h2>
+<p><strong>Tarif</strong> ouvre l'écran du tarif de l'exercice affiché : nouveau montant mensuel et mois d'effet (le mois suivant par défaut). Les mois antérieurs gardent leur montant, même impayés ; les mois déjà réglés ne bougent pas. Fermer l'écran <strong>n'annule pas</strong> un tarif déjà appliqué.</p>
+<hr>
+<h2>9. Sauvegarder</h2>
+<p><strong>Sauvegardes</strong> affiche la liste des copies existantes, de la plus récente à la plus ancienne, avec leur date lisible et leur taille.</p>
+<ul><li><strong>Sauvegarder maintenant</strong> crée une copie immédiate, vérifiée (intégrité et version de schéma), puis affiche son nom.</li><li>Cinq copies au maximum sont conservées : à chaque nouvelle sauvegarde, la plus ancienne est effacée. Le dossier ne grossit donc pas sans fin.</li><li>Les fichiers s'appellent <code>cotisations_AAAA-MM-JJ_HH-MM-SS.db</code> et vivent dans le dossier <code>sauvegardes/</code>, à côté de la base.</li></ul>
+<p><strong>Quand sauvegarder</strong> : avant une purge, avant une restauration, avant une grosse séance de corrections, et en fin de journée. Une copie prend une seconde.</p>
+<h2>10. Restaurer</h2>
+<ol><li><strong>Sauvegardes</strong>, puis <strong>Restaurer</strong> sur la copie voulue.</li><li>Le bouton devient <strong>Confirmer</strong> : un second clic restaure.</li><li>L'application sauvegarde d'abord l'état actuel (une copie de sécurité), puis remplace le contenu de la base. Le message final donne le nom de cette copie de sécurité : c'est votre marche arrière si vous avez restauré la mauvaise.</li></ol>
+<p>Une copie abîmée, ou issue de l'ancienne version Python, est <strong>refusée avant toute écriture</strong> : la base en cours reste intacte.</p>
+<hr>
+<h2>11. Purger</h2>
+<p><strong>Sauvegardes → Purger la base.</strong> Trois portées, chacune à double clic :</p>
+<table><thead><tr><th>Bouton</th><th>Efface</th><th>Conserve</th></tr></thead><tbody><tr><td><strong>Effacer les cotisations</strong></td><td>versements et affectations</td><td>membres, hiérarchie, exercices, tarifs</td></tr><tr><td><strong>Effacer membres et hiérarchie</strong></td><td>membres, familles, lignées, grandes familles, clans, <strong>et leurs versements</strong></td><td>exercices et échéances</td></tr><tr><td><strong>Tout effacer</strong></td><td>les deux</td><td>exercices et échéances</td></tr></tbody></table>
+<p>Avant toute suppression, l'application écrit et vérifie une <strong>copie de sécurité</strong> ; si la copie échoue, rien n'est effacé. Tout part dans une seule transaction : soit tout est effacé, soit rien ne l'est. Le message final dit ligne par ligne ce qui est parti (« Effacé : 227 versements, 1 805 affectations… »).</p>
+<p>Deux choses ne sont <strong>jamais</strong> effacées : les exercices avec leurs tarifs, et les numéros de reçus déjà utilisés (ils ne seront pas réattribués).</p>
+<p>Après une purge « Tout effacer », l'application reste utilisable : recréez vos clans et familles, puis vos membres. Pour revenir en arrière, <strong>Restaurer</strong> la copie de sécurité indiquée dans le message.</p>
+<hr>
+<h2>12. Où sont mes fichiers</h2>
+<table><thead><tr><th>Élément</th><th>Emplacement</th></tr></thead><tbody><tr><td>Base de données</td><td><code>cotisations_v2.db</code>, à côté de l'application</td></tr><tr><td>Sauvegardes (5 max)</td><td><code>sauvegardes/cotisations_AAAA-MM-JJ_HH-MM-SS.db</code></td></tr><tr><td>Exports CSV</td><td><code>exports/&lt;liste&gt;_AAAA-MM-JJ_HH-MM-SS.csv</code></td></tr><tr><td>Démonstration</td><td>fichier temporaire <code>fonds-entraide-demo.db</code></td></tr></tbody></table>
+<p>Ces dossiers contiennent des données nominatives : ils restent sur le poste et ne doivent pas être envoyés par messagerie ni déposés sur un site public. Une clé USB ou un disque externe suffit pour une copie hors du poste.</p>
+<hr>
+<h2>13. En cas de problème</h2>
+<table><thead><tr><th>Message</th><th>Que faire</th></tr></thead><tbody><tr><td>« Montant invalide : un nombre entier de francs, supérieur à zéro. »</td><td>Saisir un montant sans espace ni virgule (ex. <code>3000</code>).</td></tr><tr><td>« X F ne peuvent pas être affectés : Y F resteraient non ventilés »</td><td>Réduire le montant, ou changer d'exercice dans la feuille.</td></tr><tr><td>« Aucun exercice ouvert : impossible d'imputer le versement. »</td><td>Aucun exercice ne couvre la date : vérifier les exercices.</td></tr><tr><td>« Suppression impossible : … »</td><td>Le nœud ou le membre a des enfants ou des versements : les traiter d'abord.</td></tr><tr><td>« Copie abîmée » / « schéma … attendu »</td><td>Cette copie n'est pas restaurable : en choisir une autre, plus récente.</td></tr><tr><td>« Base introuvable ou illisible »</td><td>Vérifier que <code>cotisations_v2.db</code> est bien à côté de l'exécutable, ou restaurer une copie.</td></tr></tbody></table>
+<p>---## 14. Fin de journée — la check-list</p>
+<ol><li>Les versements de la journée sont saisis (compteurs cohérents en haut).</li><li><strong>Sauvegardes → Sauvegarder maintenant</strong>.</li><li>Le message de confirmation donne le nom de la copie : notez-le si vous</li></ol>
+<p>tenez un cahier.</p>
+<ol><li>Fermez la fenêtre.</li></ol>
+<hr>
+<h2>Annexe — aide-mémoire A4</h2>
+<p>Pour le poste de caisse, <code>aide-memoire.html</code> réunit l'essentiel sur <strong>une seule page A4</strong> : les six gestes de l'encaissement, l'impression du reçu, l'annulation d'un versement, la check-list de fin de journée, sauvegarder/restaurer/purger, l'emplacement des fichiers et les trois messages d'erreur les plus fréquents.</p>
+<p>Double-cliquez le fichier (il s'ouvre dans le navigateur), puis <strong>Ctrl+P</strong> : le format A4, les marges et la mise en page sont déjà réglés, et la barre « Imprimer » ne sort pas sur la feuille. Vérifiez « A4 » et « Portrait » dans la boîte d'impression, puis imprimez.</p>
+<p>Une version PDF est fournie à côté : <code>aide-memoire.pdf</code> — une page A4, sans en-tête ni pied de page du navigateur. Elle s'imprime directement ou s'envoie à qui doit tenir la caisse.</p>
+    </main>
+  </body>
+</html>

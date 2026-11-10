@@ -1121,6 +1121,33 @@ tbody tr.selection {
   gap: 8px;
 }
 
+/* ---------- aide intégrée ---------- */
+.feuille.aide {
+  display: flex;
+  flex-direction: column;
+  width: min(1120px, 94vw);
+  max-width: 94vw;
+  height: min(88vh, 880px);
+  max-height: 92vh;
+}
+
+.feuille.aide .feuille-corps {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.aide-page {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 1px solid var(--bord);
+  border-radius: 8px;
+  background: #f4f7f6;
+}
+
 .champ textarea {
   padding: 9px 11px;
   border: 1px solid var(--bord);

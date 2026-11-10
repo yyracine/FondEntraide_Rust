@@ -1959,6 +1959,57 @@ $("ouvrir-demo").addEventListener("click", () => {
   ouvrirDemonstration().catch((e) => afficherErreur(e));
 });
 
+/* ---------------------------------- aide -------------------------------- */
+/**
+ * Affiche un document embarqué dans l'écran d'aide. Le HTML vient du binaire
+ * (`lire_aide`) : une iframe le rend telle quelle, sans réseau ni fichier.
+ */
+async function afficherAide(doc) {
+  try {
+    const html = await invoke("lire_aide", { doc });
+    const page = $("aide-page");
+    page.srcdoc = html;
+    page.hidden = false;
+    $("imprimer-aide").hidden = false;
+    $("aide-fil").textContent =
+      doc === "guide" ? "Guide d'utilisation" : "Aide-mémoire — une page";
+    $("aide-note").textContent = "";
+  } catch (erreur) {
+    $("aide-note").textContent = String(erreur);
+  }
+}
+
+function fermerAide() {
+  $("voile-aide").hidden = true;
+  $("aide-page").srcdoc = "";
+  $("aide-page").hidden = true;
+  $("imprimer-aide").hidden = true;
+  $("aide-fil").textContent = "Choisissez un document";
+}
+
+/** Imprime le document affiché, pas la fenêtre principale. */
+function imprimerAide() {
+  $("aide-page").contentWindow?.print?.();
+}
+
+$("ouvrir-aide").addEventListener("click", () => {
+  $("aide-note").textContent = "";
+  $("voile-aide").hidden = false;
+});
+for (const id of ["fermer-aide", "annuler-aide"]) {
+  $(id).addEventListener("click", fermerAide);
+}
+$("voile-aide").addEventListener("click", (evenement) => {
+  if (evenement.target === $("voile-aide")) fermerAide();
+});
+$("lire-aide-memoire").addEventListener("click", () => {
+  afficherAide("aide-memoire").catch((e) => afficherErreur(e));
+});
+$("lire-guide").addEventListener("click", () => {
+  afficherAide("guide").catch((e) => afficherErreur(e));
+});
+$("imprimer-aide").addEventListener("click", imprimerAide);
+
 $("ouvrir-sauvegarde").addEventListener("click", () => {
   ouvrirSauvegardes().catch((e) => afficherErreur(e));
 });

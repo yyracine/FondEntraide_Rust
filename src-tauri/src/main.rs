@@ -460,6 +460,22 @@ fn mode_demo(etat: tauri::State<Etat>) -> bool {
     etat.demo
 }
 
+/// Contenu des deux documents d'aide, compilés dans le binaire. L'interface
+/// les affiche dans une iframe : pas de seconde fenêtre ni de protocole
+/// d'assets à charger, et l'aide reste disponible hors ligne.
+fn contenu_aide(doc: &str) -> Result<&'static str, String> {
+    match doc {
+        "aide-memoire" => Ok(include_str!("../../aide-memoire.html")),
+        "guide" => Ok(include_str!("../../ui/aide/guide.html")),
+        autre => Err(format!("document d'aide inconnu : {autre}")),
+    }
+}
+
+#[tauri::command]
+fn lire_aide(doc: String) -> Result<String, String> {
+    contenu_aide(&doc).map(str::to_owned)
+}
+
 fn main() {
     let etat = Etat::ouvrir();
 
@@ -491,6 +507,7 @@ fn main() {
             purger_base,
             mode_demo,
             lancer_demo,
+            lire_aide,
             clans,
             grandes_familles,
             lignees,
@@ -499,4 +516,18 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("échec du lancement de Tauri");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn les_documents_d_aide_sont_embarques() {
+        assert!(contenu_aide("aide-memoire")
+            .unwrap()
+            .contains("Fonds d'Entraide"));
+        assert!(contenu_aide("guide").unwrap().contains("Guide du caissier"));
+        assert!(contenu_aide("inconnu").is_err());
+    }
 }
