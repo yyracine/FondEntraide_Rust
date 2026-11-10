@@ -13,6 +13,9 @@ pub enum Erreur {
     #[error("exercice inconnu : {0}")]
     ExerciceInconnu(i64),
 
+    #[error("versement inconnu : {0}")]
+    PaiementInconnu(i64),
+
     #[error("aucune échéance échue à régler sur cet exercice")]
     AucuneEcheance,
 

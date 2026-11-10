@@ -502,3 +502,228 @@ fn le_plan_annonce_les_mois_et_le_reliquat_sans_ecrire() {
     let rien = ventilation::plan_ventilation(&con, membre, exercice, 1_000, jour(2026, 12, 31));
     assert!(matches!(rien, Err(Erreur::AucuneEcheance)));
 }
+
+/// La fiche relit les versements d'un membre : du plus récent au plus ancien,
+/// avec leur reçu et les mois qu'ils ont couverts, en une seule requête.
+#[test]
+fn l_historique_liste_les_versements_du_plus_recent_au_plus_ancien() {
+    let b = base();
+    let mut con = ouvrir(&b);
+    let membre = creer_membre(
+        &con,
+        premiere_famille(&con),
+        "Historique",
+        Some("2027-01-01"),
+        None,
+    );
+    let exercice = creer_exercice(
+        &con,
+        "Historique 2027",
+        jour(2027, 1, 1),
+        jour(2027, 12, 31),
+        1_000,
+    )
+    .expect("exercice de test");
+
+    let premier = ventilation::ventiler(
+        &mut con,
+        membre,
+        exercice,
+        2_000,
+        jour(2027, 3, 10),
+        "especes",
+    )
+    .expect("mars réglé");
+    let second = ventilation::ventiler(
+        &mut con,
+        membre,
+        exercice,
+        1_000,
+        jour(2027, 4, 10),
+        "mobile_money",
+    )
+    .expect("avril réglé");
+
+    let liste = ventilation::historique_paiements(&con, membre).unwrap();
+    assert_eq!(liste.len(), 2, "un bloc par versement");
+    assert_eq!(liste[0].id, second.id, "le plus récent en tête");
+    assert_eq!(liste[1].id, premier.id);
+    assert_eq!(liste[1].montant_total, 2_000);
+    assert_eq!(liste[1].mode, "especes");
+    assert_eq!(
+        liste[1].affectations.len(),
+        2,
+        "les deux mois couverts sont listés"
+    );
+    assert_eq!(liste[1].affectations[0].mois, 1);
+    assert_eq!(liste[1].affectations[1].mois, 2);
+    assert!(
+        liste[1].numero_recu.is_some(),
+        "chaque versement a son reçu"
+    );
+    assert_ne!(
+        liste[0].numero_recu, liste[1].numero_recu,
+        "deux reçus, deux numéros"
+    );
+
+    // Un membre sans versement ne doit pas produire de bloc vide.
+    let autre = creer_membre(
+        &con,
+        premiere_famille(&con),
+        "SansVersement",
+        Some("2027-01-01"),
+        None,
+    );
+    assert!(ventilation::historique_paiements(&con, autre)
+        .unwrap()
+        .is_empty());
+}
+
+/// Annuler un versement libère ses mois, sans jamais rendre son numéro de
+/// reçu : le compteur ne redescend pas (D9).
+#[test]
+fn un_versement_supprime_libere_ses_mois_sans_rendre_son_recu() {
+    let b = base();
+    let mut con = ouvrir(&b);
+    let membre = creer_membre(
+        &con,
+        premiere_famille(&con),
+        "Annulation",
+        Some("2027-01-01"),
+        None,
+    );
+    let exercice = creer_exercice(
+        &con,
+        "Annulation 2027",
+        jour(2027, 1, 1),
+        jour(2027, 12, 31),
+        1_000,
+    )
+    .expect("exercice de test");
+
+    let paiement = ventilation::ventiler(
+        &mut con,
+        membre,
+        exercice,
+        3_000,
+        jour(2027, 4, 10),
+        "especes",
+    )
+    .expect("janvier à mars réglés");
+    let numero = paiement.numero_recu.clone();
+    // Le solde porte sur tout l'exercice : 12 000 F dus, 3 000 F versés.
+    let avant = ventilation::solde(&con, membre, exercice).unwrap().unwrap();
+    assert_eq!((avant.paye, avant.reste), (3_000, 9_000));
+
+    ventilation::supprimer_paiement(&mut con, paiement.id).expect("annulation");
+
+    let affectations: i64 = con
+        .query_row(
+            "SELECT COUNT(*) FROM affectations WHERE paiement_id = ?1",
+            params![paiement.id],
+            |l| l.get(0),
+        )
+        .unwrap();
+    assert_eq!(affectations, 0, "aucune affectation ne survit au versement");
+    let apres = ventilation::solde(&con, membre, exercice).unwrap().unwrap();
+    assert_eq!(
+        (apres.paye, apres.reste),
+        (0, 12_000),
+        "l'annulation remet l'exercice entier à payer"
+    );
+
+    // Le versement suivant prend le numéro d'après, jamais celui du supprimé.
+    let suivant = ventilation::ventiler(
+        &mut con,
+        membre,
+        exercice,
+        1_000,
+        jour(2027, 4, 11),
+        "especes",
+    )
+    .expect("nouveau versement");
+    assert_ne!(
+        suivant.numero_recu, numero,
+        "un reçu supprimé ne revient pas"
+    );
+    assert_eq!(suivant.numero_recu, "RECU-2027-000002");
+
+    // Un identifiant inconnu est refusé proprement, sans rien casser.
+    assert!(matches!(
+        ventilation::supprimer_paiement(&mut con, 999_999),
+        Err(Erreur::PaiementInconnu(_))
+    ));
+}
+
+/// La grille de la fiche : douze cases, avec soldé, partiel, échu et à venir.
+#[test]
+fn la_grille_des_douze_mois_distingue_paye_partiel_et_impaye() {
+    let b = base();
+    let mut con = ouvrir(&b);
+    let exercice = creer_exercice(
+        &con,
+        "Grille 2027",
+        jour(2027, 1, 1),
+        jour(2027, 12, 31),
+        1_000,
+    )
+    .expect("exercice de test");
+    let membre = creer_membre(
+        &con,
+        premiere_famille(&con),
+        "Grille",
+        Some("2027-01-01"),
+        None,
+    );
+
+    ventilation::ventiler(
+        &mut con,
+        membre,
+        exercice,
+        1_500,
+        jour(2027, 3, 15),
+        "especes",
+    )
+    .expect("janvier et février");
+
+    let grille =
+        ventilation::grille_membre(&con, membre, exercice, "2027-03-20").expect("grille du membre");
+    assert_eq!(grille.len(), 12, "un exercice complet a douze cases");
+    assert_eq!(
+        (
+            grille[0].mois,
+            grille[0].du,
+            grille[0].paye,
+            grille[0].reste
+        ),
+        (1, 1_000, 1_000, 0),
+        "janvier est soldé"
+    );
+    assert_eq!(
+        (grille[1].paye, grille[1].reste),
+        (500, 500),
+        "février est partiel"
+    );
+    assert_eq!(
+        (grille[2].paye, grille[2].reste, grille[2].echue),
+        (0, 1_000, true),
+        "mars est échu et impayé"
+    );
+    assert!(!grille[3].echue, "avril n'est pas encore échu au 20 mars");
+    assert!(!grille[11].echue, "décembre est à venir");
+
+    // Un membre entré en juillet garde douze cases, dont six hors période.
+    let tardif = creer_membre(
+        &con,
+        premiere_famille(&con),
+        "Tardif",
+        Some("2027-07-01"),
+        None,
+    );
+    let grille = ventilation::grille_membre(&con, tardif, exercice, "2027-03-20")
+        .expect("grille du membre entré en juillet");
+    assert_eq!(grille.len(), 12);
+    assert!(!grille[0].assujetti, "janvier précède l'entrée");
+    assert_eq!((grille[0].du, grille[0].reste), (0, 0));
+    assert!(grille[6].assujetti, "juillet est dans la période");
+}

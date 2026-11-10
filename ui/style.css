@@ -672,3 +672,253 @@ tbody tr.selection {
 .feuille .annees {
   margin-bottom: 12px;
 }
+
+/* ---------- fiche du membre ---------- */
+.lien {
+  padding: 2px 9px;
+  border: 1px solid var(--bord-net);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--texte-doux);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.lien:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.secondaire {
+  padding: 8px 12px;
+  border: 1px solid var(--bord-net);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--texte-doux);
+  font: inherit;
+  cursor: pointer;
+}
+
+.secondaire:hover {
+  border-color: var(--accent);
+  color: var(--texte);
+}
+
+.fiche-section {
+  margin: 16px 0 8px;
+  color: var(--texte-faible);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.versements {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.versement {
+  padding: 8px 10px;
+  border: 1px solid var(--bord);
+  border-radius: 8px;
+  background: var(--fond);
+}
+
+.versement-tete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.versement-montant {
+  font-variant-numeric: tabular-nums;
+}
+
+.versement-details {
+  color: var(--texte-faible);
+  font-size: 11.5px;
+}
+
+.versement-mois {
+  margin-top: 4px;
+  color: var(--texte-doux);
+  font-size: 11.5px;
+}
+
+.versement-pied {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.lien.danger {
+  border-color: rgba(217, 112, 112, 0.4);
+  color: var(--rouge);
+}
+
+.lien.danger.arme {
+  border-color: var(--rouge);
+  background: rgba(217, 112, 112, 0.14);
+  color: #f0a0a0;
+}
+
+.lien:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------- impression du reçu ---------- */
+.impression {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  body {
+    display: block;
+    padding: 0;
+    background: #fff;
+    color: #111;
+    overflow: visible;
+  }
+
+  /* Une seule chose à l'écran imprimé : la feuille dédiée. */
+  body > *:not(#impression) {
+    display: none !important;
+  }
+
+  #impression {
+    display: block !important;
+    background: #fff;
+    color: #111;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    font-size: 12pt;
+  }
+
+  .impression-entete h1 {
+    margin-bottom: 1mm;
+    font-size: 17pt;
+  }
+
+  .impression-entete p {
+    color: #444;
+    font-size: 10.5pt;
+  }
+
+  .impression-membre {
+    margin-top: 7mm;
+    font-size: 13pt;
+    font-weight: 600;
+  }
+
+  .impression-chemin {
+    color: #555;
+    font-size: 9.5pt;
+  }
+
+  .impression-numero {
+    margin-top: 6mm;
+    font-family: "Consolas", monospace;
+    font-size: 12pt;
+    letter-spacing: 0.5px;
+  }
+
+  .impression-infos {
+    margin: 2mm 0 4mm;
+  }
+
+  #impression ul {
+    margin: 0 0 0 5mm;
+  }
+
+  #impression li {
+    margin-bottom: 1mm;
+  }
+
+  .impression-total {
+    margin-top: 5mm;
+    padding-top: 2mm;
+    border-top: 1px solid #999;
+    font-weight: 600;
+  }
+}
+
+/* ---------- grille des 12 mois ---------- */
+.grille {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.case-mois {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 9px;
+  border: 1px solid var(--bord);
+  border-radius: 8px;
+  background: var(--panneau-haut);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.case-nom {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--texte-faible);
+}
+
+.case-montant {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--texte-doux);
+}
+
+.case-mois.paye {
+  border-color: rgba(87, 184, 148, 0.35);
+}
+
+.case-mois.paye .case-montant {
+  color: var(--vert);
+}
+
+.case-mois.partiel {
+  border-color: rgba(217, 178, 95, 0.45);
+  background: var(--accent-doux);
+}
+
+.case-mois.partiel .case-montant {
+  color: var(--accent);
+}
+
+.case-mois.impaye {
+  border-color: rgba(217, 112, 112, 0.45);
+}
+
+.case-mois.impaye .case-montant {
+  color: var(--rouge);
+}
+
+.case-mois.avenir {
+  border-style: dashed;
+}
+
+.case-mois.hors {
+  border-style: dashed;
+  opacity: 0.4;
+}
+
+@media (max-width: 760px) {
+  .grille {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

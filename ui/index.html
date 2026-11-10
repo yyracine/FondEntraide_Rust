@@ -73,6 +73,7 @@
               <th class="droite" id="th-reste">Reste</th>
               <th class="droite" id="th-arrieres">Arriérés</th>
               <th>Parent</th>
+              <th>Fiche</th>
             </tr>
           </thead>
           <tbody id="corps-membres"></tbody>
@@ -123,6 +124,9 @@
           <p class="note" id="note"></p>
 
           <div class="actions">
+            <button type="button" class="secondaire" id="ouvrir-historique">
+              Historique des versements
+            </button>
             <button type="button" class="primaire" id="encaisser">Enregistrer le versement</button>
           </div>
 
@@ -130,6 +134,31 @@
         </div>
       </div>
     </div>
+
+    <div class="voile" id="voile-fiche" hidden>
+      <div class="feuille" role="dialog" aria-modal="true" aria-labelledby="fiche-titre">
+        <header class="feuille-entete">
+          <div>
+            <h3 id="fiche-titre">Fiche</h3>
+            <p class="fil" id="fiche-chemin"></p>
+          </div>
+          <button type="button" class="fermer" id="fermer-fiche" aria-label="Fermer">×</button>
+        </header>
+
+        <div class="feuille-corps">
+          <div class="soldes" id="fiche-soldes"></div>
+
+          <h4 class="fiche-section">Grille des 12 mois</h4>
+          <div class="grille" id="fiche-grille"></div>
+
+          <h4 class="fiche-section">Versements</h4>
+          <div class="versements" id="fiche-versements"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feuille d'impression : seule visible en @media print. -->
+    <div id="impression" class="impression"></div>
 
     <script src="app.js"></script>
   </body>

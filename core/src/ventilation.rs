@@ -1,7 +1,9 @@
 use chrono::{Datelike, NaiveDate};
 use rusqlite::{params, Connection};
 
-use crate::domaine::{EcheanceImpayee, Paiement, PlanVentilation, Solde, Ventilation};
+use crate::domaine::{
+    EcheanceImpayee, MoisMembre, Paiement, PaiementHistorique, PlanVentilation, Solde, Ventilation,
+};
 use crate::erreur::Erreur;
 use crate::recus;
 
@@ -245,4 +247,171 @@ pub fn ventiler(
         montant_total: total,
         affectations: plan.affectations,
     })
+}
+
+/// Versements d'un membre, du plus récent au plus ancien, avec les mois que
+/// chacun a couverts. Une seule requête : on ne relit pas les affectations
+/// paiement par paiement.
+pub fn historique_paiements(
+    con: &Connection,
+    membre_id: i64,
+) -> Result<Vec<PaiementHistorique>, Erreur> {
+    let mut stmt = con.prepare(
+        "SELECT p.id, p.date_paiement, p.montant_total, p.mode, p.numero_recu,
+                a.montant, e.annee, e.mois
+           FROM paiements p
+           LEFT JOIN affectations a ON a.paiement_id = p.id
+           LEFT JOIN echeances e    ON e.id = a.echeance_id
+          WHERE p.membre_id = ?1
+          ORDER BY date(p.date_paiement) DESC, p.id DESC, e.annee, e.mois",
+    )?;
+
+    let lignes = stmt.query_map(params![membre_id], |l| {
+        Ok((
+            PaiementHistorique {
+                id: l.get(0)?,
+                date_paiement: l.get(1)?,
+                montant_total: l.get(2)?,
+                mode: l.get(3)?,
+                numero_recu: l.get(4)?,
+                affectations: Vec::new(),
+            },
+            l.get::<_, Option<i64>>(5)?,
+            l.get::<_, Option<i32>>(6)?,
+            l.get::<_, Option<u32>>(7)?,
+        ))
+    })?;
+
+    let mut resultat: Vec<PaiementHistorique> = Vec::new();
+    for ligne in lignes {
+        let (paiement, montant, annee, mois) = ligne?;
+        let nouveau = resultat.last().map(|p| p.id) != Some(paiement.id);
+        if nouveau {
+            resultat.push(paiement);
+        }
+        if let (Some(montant), Some(annee), Some(mois)) = (montant, annee, mois) {
+            if let Some(courant) = resultat.last_mut() {
+                courant.affectations.push(Ventilation {
+                    // L'échéance n'est pas nécessaire à l'affichage de la fiche.
+                    echeance_id: 0,
+                    annee,
+                    mois,
+                    montant,
+                });
+            }
+        }
+    }
+    Ok(resultat)
+}
+
+/// Supprime un versement et libère les mois qu'il couvrait.
+///
+/// Décision D9 : l'annulation est permise (une erreur de saisie doit pouvoir
+/// se corriger), mais le **numéro de reçu reste consommé** — `sequences`
+/// n'est jamais décrémenté, donc un reçu supprimé ne peut pas être réattribué
+/// à un autre versement.
+pub fn supprimer_paiement(con: &mut Connection, paiement_id: i64) -> Result<(), Erreur> {
+    let tx = con.transaction()?;
+
+    let existe: bool = tx.query_row(
+        "SELECT EXISTS (SELECT 1 FROM paiements WHERE id = ?1)",
+        params![paiement_id],
+        |l| l.get(0),
+    )?;
+    if !existe {
+        return Err(Erreur::PaiementInconnu(paiement_id));
+    }
+
+    // Suppression explicite des affectations : on ne dépend pas du réglage
+    // `foreign_keys` de la connexion pour libérer les échéances.
+    tx.execute(
+        "DELETE FROM affectations WHERE paiement_id = ?1",
+        params![paiement_id],
+    )?;
+    tx.execute("DELETE FROM paiements WHERE id = ?1", params![paiement_id])?;
+
+    // Le contrôle reste actif après suppression : aucun versement ne doit
+    // sortir incohérent de la transaction.
+    let incoherents: i64 =
+        tx.query_row("SELECT COUNT(*) FROM v_paiements_incoherents", [], |l| {
+            l.get(0)
+        })?;
+    if incoherents > 0 {
+        return Err(Erreur::Incoherence);
+    }
+
+    tx.commit()?;
+    Ok(())
+}
+
+/// Grille des échéances d'un membre sur un exercice, dans l'ordre des mois.
+///
+/// Toujours les douze cases d'un exercice complet : un mois hors période
+/// d'adhésion est renvoyé avec `assujetti = false` et des montants nuls, plutôt
+/// que supprimé. `date_reference` est la date à laquelle on juge l'échéance
+/// échue (elle est injectée pour que les tests ne dépendent pas du jour réel).
+pub fn grille_membre(
+    con: &Connection,
+    membre_id: i64,
+    exercice_id: i64,
+    date_reference: &str,
+) -> Result<Vec<MoisMembre>, Erreur> {
+    let reference = NaiveDate::parse_from_str(date_reference, "%Y-%m-%d")
+        .map_err(|_| Erreur::DateInvalide(date_reference.to_string()))?;
+
+    let mut stmt = con.prepare(
+        "SELECT e.id, e.annee, e.mois, e.date_echeance, e.montant_du,
+                CASE WHEN m.id IS NULL THEN 0 ELSE 1 END AS assujetti,
+                IFNULL(pay.paye, 0) AS paye
+           FROM echeances e
+           LEFT JOIN membres m
+             ON m.id = ?1
+            AND m.statut = 'actif'
+            AND (m.date_entree IS NULL OR date(m.date_entree) <= date(e.date_echeance))
+            AND (m.date_sortie IS NULL OR date(m.date_sortie) >= date(e.date_echeance))
+           LEFT JOIN (SELECT a.echeance_id AS echeance_id,
+                             SUM(a.montant)  AS paye
+                        FROM affectations a
+                        JOIN paiements p ON p.id = a.paiement_id
+                       WHERE p.membre_id = ?1
+                       GROUP BY a.echeance_id) pay
+             ON pay.echeance_id = e.id
+          WHERE e.exercice_id = ?2
+          ORDER BY e.annee, e.mois",
+    )?;
+
+    let lignes = stmt.query_map(params![membre_id, exercice_id], |l| {
+        let assujetti: i64 = l.get(5)?;
+        let montant_du: i64 = l.get(4)?;
+        let paye: i64 = l.get(6)?;
+        let date_echeance: String = l.get(3)?;
+        let (du, paye) = if assujetti == 1 {
+            (montant_du, paye)
+        } else {
+            (0, 0)
+        };
+        Ok(MoisMembre {
+            echeance_id: l.get(0)?,
+            annee: l.get(1)?,
+            mois: l.get(2)?,
+            date_echeance,
+            du,
+            paye,
+            reste: (du - paye).max(0),
+            // Rempli après la collecte : la closure de `query_map` ne peut
+            // renvoyer qu'une erreur rusqlite, pas une `Erreur` du domaine.
+            echue: false,
+            assujetti: assujetti == 1,
+        })
+    })?;
+
+    let mut resultat = Vec::new();
+    for ligne in lignes {
+        let mut mois = ligne?;
+        let jour_echeance = NaiveDate::parse_from_str(&mois.date_echeance, "%Y-%m-%d")
+            .map_err(|_| Erreur::DateInvalide(mois.date_echeance.clone()))?;
+        mois.echue = jour_echeance <= reference;
+        resultat.push(mois);
+    }
+    Ok(resultat)
 }

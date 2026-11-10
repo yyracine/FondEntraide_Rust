@@ -24,6 +24,14 @@ const MOIS = [
   "décembre",
 ];
 
+const MODES = {
+  especes: "espèces",
+  mobile_money: "mobile money",
+  virement: "virement",
+  cheque: "chèque",
+  autre: "autre",
+};
+
 const nf = new Intl.NumberFormat("fr-FR");
 const $ = (id) => document.getElementById(id);
 const fcf = (montant) => `${nf.format(montant)} F`;
@@ -322,7 +330,7 @@ function afficherMembres(membres) {
   if (membres.length === 0) {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 7;
+    td.colSpan = 8;
     td.className = "vide-table";
     td.textContent = etat.famille
       ? "Aucun membre ne correspond à cette recherche."
@@ -346,6 +354,21 @@ function afficherMembres(membres) {
       ),
       cellule(membre.parent, membre.parent ? "" : "doux"),
     );
+
+    // Le bouton de fiche ne doit pas ouvrir la feuille d'encaissement : le clic
+    // remonte au <tr> dans un vrai navigateur.
+    const caseFiche = document.createElement("td");
+    const boutonFiche = document.createElement("button");
+    boutonFiche.type = "button";
+    boutonFiche.className = "lien";
+    boutonFiche.textContent = "Fiche";
+    boutonFiche.addEventListener("click", (evenement) => {
+      evenement?.stopPropagation?.();
+      ouvrirFiche(membre);
+    });
+    caseFiche.append(boutonFiche);
+    tr.append(caseFiche);
+
     tr.addEventListener("click", () => ouvrirFeuille(membre, tr));
     corps.append(tr);
   }
@@ -389,6 +412,190 @@ $("recherche").addEventListener("input", () => {
     chargerMembres().catch((e) => afficherErreur(e));
   }, 150);
 });
+
+/* ------------------------------- fiche --------------------------------- */
+let membreFiche = null;
+
+function nomComplet(membre) {
+  return membre.prenom ? `${membre.nom} ${membre.prenom}` : membre.nom;
+}
+
+async function chargerVersements(membreId) {
+  const versements = await invoke("paiements_membre", { membreId });
+  const boite = $("fiche-versements");
+  boite.replaceChildren();
+
+  if (versements.length === 0) {
+    vide(boite, "Aucun versement enregistré pour ce membre.");
+    return;
+  }
+
+  for (const versement of versements) {
+    const bloc = document.createElement("div");
+    bloc.className = "versement";
+
+    const tete = document.createElement("div");
+    tete.className = "versement-tete";
+    const montant = document.createElement("span");
+    montant.className = "versement-montant";
+    montant.textContent = fcf(versement.montant_total);
+    const details = document.createElement("span");
+    details.className = "versement-details";
+    const jour = (versement.date_paiement ?? "").split("-").reverse().join("/");
+    details.textContent = [
+      jour,
+      versement.numero_recu ?? "sans reçu",
+      MODES[versement.mode] ?? versement.mode,
+    ].join(" · ");
+    tete.append(montant, details);
+    bloc.append(tete);
+
+    const mois = document.createElement("p");
+    mois.className = "versement-mois";
+    mois.textContent = versement.affectations
+      .map((part) => `${MOIS[part.mois - 1]} ${part.annee}`)
+      .join(", ");
+    bloc.append(mois);
+    bloc.append(boutonAnnuler(versement));
+
+    boite.append(bloc);
+  }
+}
+
+/** État d'un mois de la grille : payé, partiel, impayé, à venir, hors période. */
+function etatMois(mois) {
+  if (!mois.assujetti) return "hors";
+  if (mois.reste === 0) return "paye";
+  if (mois.paye > 0) return "partiel";
+  return mois.echue ? "impaye" : "avenir";
+}
+
+/**
+ * Grille des douze mois : l'état de chaque échéance de l'exercice, d'un coup
+ * d'œil. Les montants affichés sont les restes, jamais les dus.
+ */
+async function chargerGrille(membre) {
+  const boite = $("fiche-grille");
+  boite.replaceChildren();
+  const exercice = exercicePourPaiement();
+  if (!membre || !exercice) return;
+
+  const mois = await invoke("grille_membre", {
+    membreId: membre.id,
+    exerciceId: exercice.id,
+    dateReference: aujourdhui(),
+  });
+
+  for (const m of mois) {
+    const etat = etatMois(m);
+    const caseMois = document.createElement("div");
+    caseMois.className = `case-mois ${etat}`;
+    caseMois.title =
+      `${MOIS[m.mois - 1]} ${m.annee} · dû ${fcf(m.du)} · payé ${fcf(m.paye)}`;
+
+    const nom = document.createElement("span");
+    nom.className = "case-nom";
+    nom.textContent = MOIS[m.mois - 1].slice(0, 3);
+    const montant = document.createElement("span");
+    montant.className = "case-montant";
+    montant.textContent =
+      etat === "hors" ? "—" : m.reste === 0 ? "payé" : fcf(m.reste);
+    caseMois.append(nom, montant);
+    boite.append(caseMois);
+  }
+}
+
+function ouvrirFiche(membre) {
+  membreFiche = membre;
+  $("fiche-titre").textContent = nomComplet(membre);
+  $("fiche-chemin").textContent = membre.chemin ?? fil();
+  majSoldesFiche(membre);
+  $("fiche-versements").replaceChildren();
+  $("fiche-grille").replaceChildren();
+  $("voile-fiche").hidden = false;
+  chargerVersements(membre.id).catch((e) => afficherErreur(e));
+  chargerGrille(membre).catch((e) => afficherErreur(e));
+}
+
+function fermerFiche() {
+  $("voile-fiche").hidden = true;
+  $("fiche-grille").replaceChildren();
+  membreFiche = null;
+}
+
+/**
+ * Annulation en deux temps : un clic arme le bouton, le second supprime.
+ * Pas de `confirm()` système : la confirmation reste dans la fiche.
+ */
+function boutonAnnuler(versement) {
+  const pied = document.createElement("div");
+  pied.className = "versement-pied";
+
+  const bouton = document.createElement("button");
+  bouton.type = "button";
+  bouton.className = "lien danger";
+  bouton.textContent = "Annuler";
+  let arme = false;
+
+  bouton.addEventListener("click", async (evenement) => {
+    evenement?.stopPropagation?.();
+    if (!arme) {
+      arme = true;
+      bouton.textContent = "Confirmer l'annulation";
+      bouton.classList.add("arme");
+      return;
+    }
+
+    const idMembre = membreFiche?.id;
+    bouton.disabled = true;
+    try {
+      await invoke("supprimer_paiement", { paiementId: versement.id });
+      if (idMembre) {
+        await chargerVersements(idMembre);
+        await rafraichirSoldesFiche();
+      }
+    } catch (erreur) {
+      afficherErreur(erreur);
+      bouton.disabled = false;
+    }
+  });
+
+  pied.append(bouton);
+  return pied;
+}
+
+/** Après une annulation, les soldes de la fiche et du tableau doivent suivre. */
+async function rafraichirSoldesFiche() {
+  if (!membreFiche) return;
+  const aJour = await invoke("membre", {
+    membreId: membreFiche.id,
+    exerciceId: etat.exercice ? etat.exercice.id : null,
+  });
+  if (aJour) {
+    membreFiche = { ...membreFiche, ...aJour };
+    majSoldesFiche(membreFiche);
+    await chargerGrille(membreFiche);
+    if (membreCourant && membreCourant.id === membreFiche.id) {
+      membreCourant = { ...membreCourant, ...aJour };
+      majSoldes(membreCourant);
+
+      // Le reçu affiché dans la feuille correspond à un versement qui vient
+      // d'être annulé : il ne doit pas rester à l'écran, et le bouton doit se
+      // réarmer puisqu'il n'y a plus rien d'enregistré.
+      viderRecu();
+      $("repartition").hidden = true;
+      $("repartition").replaceChildren();
+      enregistre = false;
+      armerBouton();
+      $("note").textContent =
+        membreCourant.reste > 0
+          ? "La ventilation suit l'ordre des mois échus : le plus ancien d'abord."
+          : "Ce membre est à jour sur cet exercice.";
+    }
+  }
+  await chargerMembres();
+  await chargerResume();
+}
 
 /* --------------------------- recherche globale -------------------------- */
 let minuterieGlobale = null;
@@ -504,8 +711,7 @@ async function choisirExerciceFeuille(exercice) {
 
   enregistre = false;
   $("montant").value = "";
-  $("recu").hidden = true;
-  $("recu").replaceChildren();
+  viderRecu();
   $("repartition").hidden = true;
   $("repartition").replaceChildren();
   armerBouton();
@@ -552,12 +758,20 @@ function armerBouton() {
     enregistre && !saisi ? "Versement enregistré" : "Enregistrer le versement";
 }
 
-function majSoldes(membre) {
-  $("feuille-soldes").replaceChildren(
+function dessinerSoldes(idListe, membre) {
+  $(idListe).replaceChildren(
     blocSolde("Payé", membre.paye, false),
     blocSolde("Reste", membre.reste, false),
     blocSolde("Arriérés", membre.arrieres, membre.arrieres > 0),
   );
+}
+
+function majSoldes(membre) {
+  dessinerSoldes("feuille-soldes", membre);
+}
+
+function majSoldesFiche(membre) {
+  dessinerSoldes("fiche-soldes", membre);
 }
 
 function ouvrirFeuille(membre, ligneTableau) {
@@ -590,8 +804,7 @@ function ouvrirFeuille(membre, ligneTableau) {
 
   $("repartition").hidden = true;
   $("repartition").replaceChildren();
-  $("recu").hidden = true;
-  $("recu").replaceChildren();
+  viderRecu();
   $("voile").hidden = false;
   $("montant").focus?.();
 }
@@ -684,6 +897,58 @@ async function rafraichirApercu() {
   }
 }
 
+/**
+ * Feuille d'impression : `@media print` ne laisse visible que ce bloc, qui
+ * reprend le reçu à l'identique (même numéro, même montant, mêmes mois).
+ */
+function remplirImpression(paiement) {
+  const boite = $("impression");
+  boite.replaceChildren();
+
+  const entete = document.createElement("div");
+  entete.className = "impression-entete";
+  const titre = document.createElement("h1");
+  titre.textContent = "Fonds d'Entraide";
+  const sousTitre = document.createElement("p");
+  sousTitre.textContent = "Reçu de cotisation";
+  entete.append(titre, sousTitre);
+
+  const membre = document.createElement("p");
+  membre.className = "impression-membre";
+  membre.textContent = membreCourant ? nomComplet(membreCourant) : "";
+  const chemin = document.createElement("p");
+  chemin.className = "impression-chemin";
+  chemin.textContent = $("feuille-chemin").textContent;
+
+  const numero = document.createElement("p");
+  numero.className = "impression-numero";
+  numero.textContent = paiement.numero_recu;
+
+  const date = ($("date-paiement").value || "").split("-").reverse().join("/");
+  const mode = $("mode").value;
+  const infos = document.createElement("p");
+  infos.className = "impression-infos";
+  infos.textContent = `${date} · ${MODES[mode] ?? mode} · ${fcf(paiement.montant_total)}`;
+
+  const liste = document.createElement("ul");
+  for (const part of paiement.affectations) {
+    const li = document.createElement("li");
+    li.textContent = `${MOIS[part.mois - 1]} ${part.annee} — ${fcf(part.montant)}`;
+    liste.append(li);
+  }
+
+  const total = document.createElement("p");
+  total.className = "impression-total";
+  total.textContent = `Total : ${fcf(paiement.montant_total)}`;
+
+  boite.append(entete, membre, chemin, numero, infos, liste, total);
+}
+
+/** Ouvre la boîte d'impression de WebView2 sur la feuille `#impression`. */
+function imprimerRecu() {
+  window.print?.();
+}
+
 function afficherRecu(paiement) {
   const boite = $("recu");
   boite.replaceChildren();
@@ -700,7 +965,24 @@ function afficherRecu(paiement) {
     liste.append(li);
   }
   boite.append(liste);
+
+  const imprimer = document.createElement("button");
+  imprimer.type = "button";
+  imprimer.className = "secondaire imprimer";
+  imprimer.textContent = "Imprimer le reçu";
+  imprimer.addEventListener("click", () => imprimerRecu());
+  boite.append(imprimer);
+
+  remplirImpression(paiement);
   boite.hidden = false;
+}
+
+/** Efface reçu et feuille d'impression : ils ne doivent pas survivre à
+ *  l'annulation du versement ou à une nouvelle saisie. */
+function viderRecu() {
+  $("recu").hidden = true;
+  $("recu").replaceChildren();
+  $("impression").replaceChildren();
 }
 
 async function encaisser() {
@@ -764,7 +1046,7 @@ for (const id of ["montant", "date-paiement"]) {
       // Nouvelle saisie = nouveau versement : le reçu précédent s'efface et le
       // bouton se réarme.
       enregistre = false;
-      $("recu").hidden = true;
+      viderRecu();
     }
     armerBouton();
     rafraichirApercu().catch((e) => afficherErreur(e));
@@ -775,6 +1057,13 @@ for (const id of ["montant", "date-paiement"]) {
   });
 }
 
+$("fermer-fiche").addEventListener("click", fermerFiche);
+$("voile-fiche").addEventListener("click", (evenement) => {
+  if (evenement.target === $("voile-fiche")) fermerFiche();
+});
+$("ouvrir-historique").addEventListener("click", () => {
+  if (membreCourant) ouvrirFiche(membreCourant);
+});
 $("fermer-feuille").addEventListener("click", fermerFeuille);
 $("encaisser").addEventListener("click", () => {
   encaisser().catch((e) => afficherErreur(e));

@@ -19,6 +19,18 @@ pub struct Paiement {
     pub affectations: Vec<Ventilation>,
 }
 
+/// Versement déjà enregistré, tel que la fiche du membre le relit : date, reçu,
+/// mode et mois couverts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PaiementHistorique {
+    pub id: i64,
+    pub date_paiement: String,
+    pub montant_total: i64,
+    pub mode: String,
+    pub numero_recu: Option<String>,
+    pub affectations: Vec<Ventilation>,
+}
+
 /// Répartition **prévisionnelle** d'un versement : ce que les échéances échues
 /// absorberaient, et la part qui resterait sans imputation. Aucune écriture.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -49,4 +61,21 @@ pub struct EcheanceImpayee {
     pub mois: u32,
     pub date_echeance: NaiveDate,
     pub reste: i64,
+}
+
+/// Un mois de la grille de la fiche : ce qui est dû, ce qui est payé, et l'état
+/// de l'échéance. `assujetti = false` signale un mois hors période d'adhésion
+/// (avant l'entrée ou après la sortie) : la grille garde ses douze cases.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MoisMembre {
+    pub echeance_id: i64,
+    pub annee: i32,
+    pub mois: u32,
+    pub date_echeance: String,
+    pub du: i64,
+    pub paye: i64,
+    pub reste: i64,
+    /// La date d'échéance est atteinte à la date de référence demandée.
+    pub echue: bool,
+    pub assujetti: bool,
 }

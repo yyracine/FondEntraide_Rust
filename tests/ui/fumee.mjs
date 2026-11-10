@@ -174,6 +174,40 @@ const reponses = {
       { echeance_id: 2, annee: 2026, mois: 2, montant: 1_000 },
     ],
   },
+  supprimer_paiement: null,
+  paiements_membre: [
+    {
+      id: 901,
+      date_paiement: "2026-11-10",
+      montant_total: 2_000,
+      mode: "especes",
+      numero_recu: "RECU-2026-000001",
+      affectations: [
+        { echeance_id: 1, annee: 2026, mois: 1, montant: 1_000 },
+        { echeance_id: 2, annee: 2026, mois: 2, montant: 1_000 },
+      ],
+    },
+    {
+      id: 900,
+      date_paiement: "2026-10-05",
+      montant_total: 1_000,
+      mode: "mobile_money",
+      numero_recu: "RECU-2026-000002",
+      affectations: [{ echeance_id: 3, annee: 2026, mois: 3, montant: 1_000 }],
+    },
+  ],
+  // Grille des 12 mois : janvier à mars soldés, le reste en attente.
+  grille_membre: Array.from({ length: 12 }, (_, i) => ({
+    echeance_id: i + 1,
+    annee: 2026,
+    mois: i + 1,
+    date_echeance: `2026-${String(i + 1).padStart(2, "0")}-28`,
+    du: 1_000,
+    paye: i < 3 ? 1_000 : 0,
+    reste: i < 3 ? 0 : 1_000,
+    echue: i < 3,
+    assujetti: true,
+  })),
   rechercher_membres: [
     {
       id: 180,
@@ -235,8 +269,16 @@ const invoke = async (commande, args) => {
 process.on("unhandledRejection", (e) => erreurs.push(e));
 
 /* ---------------------------- exécution réelle -------------------------- */
+let impressions = 0;
+
 const contexte = {
-  window: { __TAURI__: { core: { invoke } } },
+  window: {
+    __TAURI__: { core: { invoke } },
+    // WebView2 expose window.print() : on le remplace par un compteur.
+    print: () => {
+      impressions += 1;
+    },
+  },
   document,
   Intl,
   console,
@@ -384,16 +426,36 @@ assert.equal($("encaisser").disabled, true, "bouton désarmé après enregistrem
 assert.equal($("encaisser").textContent, "Versement enregistré");
 assert.equal($("montant").value, "", "le montant est vidé après enregistrement");
 
-// Une nouvelle saisie le réarme explicitement.
+// Le reçu affiché porte le bon numéro, les bons mois, le bon montant.
+assert.match($("recu").textContent, /RECU-2026-000001/);
+assert.match($("recu").textContent, /janvier 2026/);
+assert.match($("recu").textContent, /février 2026/);
+
+// La feuille d'impression reprend le reçu à l'identique, et le bouton
+// déclenche bien l'impression du WebView.
+assert.match($("impression").textContent, /RECU-2026-000001/);
+assert.match($("impression").textContent, /Akesse Comoé/);
+assert.match($("impression").textContent, /janvier 2026/);
+assert.ok(
+  $("impression").textContent.includes(fcf(2_000)),
+  "le montant imprimé est celui du reçu",
+);
+
+const imprimer = $("recu").children[2];
+assert.equal(imprimer.textContent, "Imprimer le reçu");
+imprimer.click();
+assert.equal(impressions, 1, "window.print est appelé une fois");
+
+// Une nouvelle saisie réarme le bouton et efface le reçu comme sa feuille
+// d'impression : on ne doit pas pouvoir imprimer un versement déjà réglé.
 $("montant").value = "1000";
 $("montant").input();
 await attendre();
 assert.equal($("encaisser").disabled, false, "le bouton se réarme sur une saisie");
 assert.equal($("encaisser").textContent, "Enregistrer le versement");
 assert.equal($("recu").hidden, true, "le reçu précédent s'efface");
-assert.match($("recu").textContent, /RECU-2026-000001/);
-assert.match($("recu").textContent, /janvier 2026/);
-assert.match($("recu").textContent, /février 2026/);
+assert.equal($("recu").textContent, "", "le reçu précédent est vidé");
+assert.equal($("impression").textContent, "", "la feuille d'impression est vidée");
 assert.equal($("note").textContent, "");
 
 // 5. fermeture
@@ -436,7 +498,105 @@ assert.equal($("recherche-membre").value, "", "le champ se vide après le choix"
 
 $("fermer-feuille").click();
 
-// 8. aucun handler n'a levé
+// 8. fiche membre : l'historique des versements, depuis le tableau
+const boutonFiche = $("corps-membres").children[0].children[7].children[0];
+boutonFiche.click();
+await attendre();
+
+assert.equal($("voile-fiche").hidden, false, "la fiche s'ouvre");
+assert.equal($("fiche-titre").textContent, "Akesse Comoé");
+assert.match($("fiche-chemin").textContent, /Akesse Comoé/);
+assert.equal(dernierAppel("paiements_membre")?.args.membreId, 180);
+assert.match($("fiche-versements").textContent, /RECU-2026-000001/);
+assert.match($("fiche-versements").textContent, /10\/11\/2026/);
+assert.match($("fiche-versements").textContent, /janvier 2026/);
+assert.match($("fiche-versements").textContent, /espèces/);
+assert.ok(
+  $("fiche-soldes").textContent.includes(fcf(9_000)),
+  "les soldes de la fiche sont ceux du membre",
+);
+assert.equal(
+  $("voile").hidden,
+  true,
+  "la fiche ne doit pas ouvrir la feuille d'encaissement",
+);
+
+// Grille des 12 mois : trois mois soldés, les suivants encore dus, et la
+// date de référence transmise pour juger les échéances.
+assert.equal($("fiche-grille").children.length, 12, "douze cases");
+assert.equal($("fiche-grille").children[0].className, "case-mois paye");
+assert.equal($("fiche-grille").children[0].children[1].textContent, "payé");
+assert.equal($("fiche-grille").children[5].className, "case-mois avenir");
+assert.equal(
+  $("fiche-grille").children[5].children[1].textContent,
+  fcf(1_000),
+  "un mois à venir affiche son reste",
+);
+assert.equal(dernierAppel("grille_membre")?.args.membreId, 180);
+assert.match(
+  dernierAppel("grille_membre")?.args.dateReference,
+  /^\d{4}-\d{2}-\d{2}$/,
+);
+
+// Annulation en deux temps : le premier clic arme, le second supprime.
+const annuler = $("fiche-versements").children[0].children[2].children[0];
+assert.equal(annuler.textContent, "Annuler");
+
+annuler.click();
+await attendre();
+assert.equal(annuler.textContent, "Confirmer l'annulation");
+assert.equal(
+  dernierAppel("supprimer_paiement"),
+  undefined,
+  "aucune suppression sans confirmation",
+);
+
+annuler.click();
+await attendre();
+assert.equal(dernierAppel("supprimer_paiement")?.args.paiementId, 901);
+assert.equal(
+  dernierAppel("paiements_membre")?.args.membreId,
+  180,
+  "l'historique est relu après l'annulation",
+);
+
+$("fermer-fiche").click();
+assert.equal($("voile-fiche").hidden, true, "la fiche se ferme");
+
+// 8b. annuler un versement alors que la feuille est ouverte : le reçu affiché
+//     ne doit pas survivre à la suppression.
+$("corps-membres").children[0].click();
+await attendre();
+$("montant").value = "1000";
+$("montant").input();
+await attendre();
+$("encaisser").click();
+await attendre();
+assert.equal($("recu").hidden, false, "un reçu est affiché avant l'annulation");
+
+$("ouvrir-historique").click();
+await attendre();
+assert.equal($("voile-fiche").hidden, false, "l'historique s'ouvre depuis la feuille");
+
+const annulerBis = $("fiche-versements").children[0].children[2].children[0];
+annulerBis.click();
+await attendre();
+annulerBis.click();
+await attendre();
+
+assert.equal($("recu").hidden, true, "le reçu d'un versement annulé disparaît");
+assert.equal($("encaisser").disabled, false, "le bouton se réarme");
+assert.equal($("encaisser").textContent, "Enregistrer le versement");
+assert.equal(
+  $("impression").textContent,
+  "",
+  "la feuille d'impression ne garde pas un reçu annulé",
+);
+
+$("fermer-fiche").click();
+$("fermer-feuille").click();
+
+// 9. aucun handler n'a levé
 assert.deepEqual(
   erreurs.map((e) => String(e)),
   [],

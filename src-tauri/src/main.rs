@@ -155,6 +155,26 @@ fn rechercher_membres(
     })
 }
 
+/// Fiche du membre : tous ses versements, reçu et mois couverts compris.
+#[tauri::command]
+fn paiements_membre(
+    etat: tauri::State<Etat>,
+    membre_id: i64,
+) -> Result<Vec<domaine::PaiementHistorique>, String> {
+    etat.avec(|con| ventilation::historique_paiements(con, membre_id))
+}
+
+/// Annule un versement : les mois redeviennent dus, le numéro de reçu reste
+/// consommé (D9).
+#[tauri::command]
+fn supprimer_paiement(etat: tauri::State<Etat>, paiement_id: i64) -> Result<(), String> {
+    let verrou = etat.base.as_ref().map_err(|e| e.clone())?;
+    let mut con = verrou
+        .lock()
+        .map_err(|_| "verrou de base empoisonné".to_string())?;
+    ventilation::supprimer_paiement(&mut con, paiement_id).map_err(|e| e.to_string())
+}
+
 /// Soldes d'un membre précis, pour rafraîchir la feuille après un versement
 /// même quand le membre a été trouvé par la recherche.
 #[tauri::command]
@@ -185,6 +205,18 @@ fn membres(
     })
 }
 
+/// Grille des douze mois d'un membre sur un exercice : ce que la fiche affiche
+/// sous les soldes, mois par mois.
+#[tauri::command]
+fn grille_membre(
+    etat: tauri::State<Etat>,
+    membre_id: i64,
+    exercice_id: i64,
+    date_reference: String,
+) -> Result<Vec<domaine::MoisMembre>, String> {
+    etat.avec(|con| ventilation::grille_membre(con, membre_id, exercice_id, &date_reference))
+}
+
 fn main() {
     let etat = Etat::ouvrir();
 
@@ -197,6 +229,9 @@ fn main() {
             previsualiser,
             rechercher_membres,
             membre,
+            paiements_membre,
+            supprimer_paiement,
+            grille_membre,
             clans,
             grandes_familles,
             lignees,
