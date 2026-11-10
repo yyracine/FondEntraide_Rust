@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Aide-mémoire du caissier — Fonds d'Entraide</title>
+    <style>
+      @page {
+        size: A4 portrait;
+        margin: 10mm;
+      }
+
+      :root {
+        --encre: #1d2321;
+        --doux: #5b6764;
+        --vert: #2f6f5e;
+        --trait: #d3dbd8;
+        --fond-doux: #f4f7f6;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #e9edec;
+        color: var(--encre);
+        font: 9.4pt/1.36 "Segoe UI", system-ui, -apple-system, sans-serif;
+      }
+
+      .barre {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+        background: #1d2321;
+        color: #fff;
+        font-size: 13px;
+      }
+
+      .barre button {
+        padding: 5px 14px;
+        border: 1px solid #7fb9a8;
+        border-radius: 6px;
+        background: transparent;
+        color: #fff;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .page {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 0 auto;
+        padding: 12mm 12mm 10mm;
+        background: #fff;
+      }
+
+      header.tete {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 10mm;
+        padding-bottom: 3mm;
+        border-bottom: 2.2pt solid var(--vert);
+      }
+
+      .tete h1 {
+        margin: 0;
+        font-size: 19pt;
+        letter-spacing: 0.2px;
+      }
+
+      .tete p {
+        margin: 1mm 0 0;
+        color: var(--doux);
+        font-size: 9.5pt;
+      }
+
+      .tete .poste {
+        text-align: right;
+        color: var(--doux);
+        font-size: 8.6pt;
+        line-height: 1.35;
+      }
+
+      .grille {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0 9mm;
+        margin-top: 4mm;
+      }
+
+      section {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        margin-bottom: 3.6mm;
+      }
+
+      h2 {
+        margin: 0 0 2mm;
+        padding-bottom: 1mm;
+        border-bottom: 1px solid var(--trait);
+        color: var(--vert);
+        font-size: 8.6pt;
+        letter-spacing: 0.9px;
+        text-transform: uppercase;
+      }
+
+      ol,
+      ul {
+        margin: 0;
+        padding-left: 5.5mm;
+      }
+
+      li {
+        margin-bottom: 1.4mm;
+      }
+
+      li:last-child {
+        margin-bottom: 0;
+      }
+
+      b {
+        font-weight: 650;
+      }
+
+      .carte {
+        padding: 2.2mm 3mm;
+        border: 1px solid var(--trait);
+        border-radius: 2mm;
+        background: var(--fond-doux);
+      }
+
+      .carte + .carte {
+        margin-top: 2mm;
+      }
+
+      .carte .titre {
+        margin: 0 0 1mm;
+        font-weight: 650;
+        font-size: 9.6pt;
+      }
+
+      .carte p {
+        margin: 0;
+      }
+
+      .liste-ok {
+        list-style: none;
+        padding-left: 0;
+      }
+
+      .liste-ok li {
+        position: relative;
+        padding-left: 6mm;
+      }
+
+      .liste-ok li::before {
+        content: "";
+        position: absolute;
+        top: 0.6mm;
+        left: 0;
+        width: 3.2mm;
+        height: 3.2mm;
+        border: 1.2pt solid var(--vert);
+        border-radius: 0.6mm;
+      }
+
+      dl.duo {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 1.2mm 3mm;
+        margin: 0;
+        font-size: 9.2pt;
+      }
+
+      dl.duo dt {
+        color: var(--doux);
+      }
+
+      dl.duo dd {
+        margin: 0;
+      }
+
+      code {
+        font: 9pt/1 ui-monospace, "Cascadia Mono", Consolas, monospace;
+      }
+
+      table.msgs {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 8.9pt;
+      }
+
+      table.msgs th {
+        padding: 0 0 1mm;
+        border-bottom: 1px solid var(--trait);
+        color: var(--doux);
+        font-weight: 600;
+        text-align: left;
+      }
+
+      table.msgs td {
+        padding: 1.2mm 2mm 1.2mm 0;
+        vertical-align: top;
+        border-bottom: 1px solid var(--trait);
+      }
+
+      table.msgs td:last-child {
+        padding-right: 0;
+      }
+
+      table.msgs tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .citation {
+        color: #444;
+        font-style: italic;
+      }
+
+      footer.pied {
+        display: flex;
+        justify-content: space-between;
+        gap: 6mm;
+        margin-top: 1mm;
+        padding-top: 2mm;
+        border-top: 1px solid var(--trait);
+        color: var(--doux);
+        font-size: 8.4pt;
+      }
+
+      @media print {
+        body {
+          background: #fff;
+        }
+
+        .barre {
+          display: none;
+        }
+
+        .page {
+          width: auto;
+          min-height: 0;
+          margin: 0;
+          padding: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="barre">
+      <span>Aperçu d'une page A4 — imprimez avec Ctrl+P.</span>
+      <button type="button" onclick="window.print()">Imprimer</button>
+    </div>
+
+    <main class="page">
+      <header class="tete">
+        <div>
+          <h1>Fonds d'Entraide</h1>
+          <p>Aide-mémoire du caissier — une page à garder près du poste</p>
+        </div>
+        <div class="poste">
+          Encaisser · Reçu · Corriger<br />
+          Sauvegarder · Restaurer · Purger
+        </div>
+      </header>
+
+      <div class="grille">
+        <div>
+          <section>
+            <h2>Encaisser en 6 gestes</h2>
+            <ol>
+              <li>
+                Cliquez la famille dans les colonnes de gauche — ou tapez le nom
+                dans la recherche « Encaisser pour un membre » en haut.
+              </li>
+              <li>Cliquez la <b>ligne du membre</b> (pas le bouton Fiche).</li>
+              <li>
+                <b>Montant (FCFA)</b> : un nombre entier, sans espace ni virgule.
+              </li>
+              <li>
+                Vérifiez la <b>date du versement</b> et le <b>mode</b> (espèces,
+                mobile money, virement, chèque, autre).
+              </li>
+              <li>
+                Lisez la <b>répartition</b> : elle montre les mois couverts par ce
+                versement.
+              </li>
+              <li><b>Enregistrer le versement</b> — le reçu s'affiche dessous.</li>
+            </ol>
+          </section>
+
+          <section>
+            <h2>Imprimer le reçu</h2>
+            <div class="carte">
+              <p class="titre">Le reçu est déjà numéroté</p>
+              <p>
+                Après l'enregistrement, cliquez <b>Imprimer le reçu</b> et
+                choisissez l'imprimante. Le numéro affiché
+                (<code>RECU-2026-000042</code>) est définitif : le réimprimer plus
+                tard donnera toujours le même numéro.
+              </p>
+            </div>
+            <div class="carte">
+              <p class="titre">Une liste ?</p>
+              <p>
+                Choisissez famille et exercice, puis
+                <b>Plus ▾ → Imprimer la liste affichée</b>. Ce qui est imprimé est
+                exactement ce qui est affiché.
+              </p>
+            </div>
+          </section>
+
+          <section>
+            <h2>Se corriger en 2 clics</h2>
+            <ol>
+              <li>Ouvrez la <b>Fiche</b> du membre (bouton à droite de la ligne).</li>
+              <li>
+                Dans <b>Versements</b>, cliquez <b>Annuler</b> : le bouton devient
+                <b>Confirmer l'annulation</b>.
+              </li>
+            </ol>
+            <p style="margin: 1.6mm 0 0">
+              Le versement disparaît, les mois redeviennent dus. Le numéro de reçu,
+              lui, n'est jamais réattribué.
+            </p>
+          </section>
+        </div>
+
+        <div>
+          <section>
+            <h2>Fin de journée</h2>
+            <ul class="liste-ok">
+              <li>
+                Les versements de la journée sont saisis et les compteurs du haut
+                ont bougé.
+              </li>
+              <li><b>Sauvegardes → Sauvegarder maintenant</b>.</li>
+              <li>
+                Le message donne le nom de la copie : <b>notez-le</b> dans votre
+                cahier.
+              </li>
+              <li>Fermez la fenêtre.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2>Sauvegarder · Restaurer · Purger</h2>
+            <dl class="duo">
+              <dt>Sauvegardes</dt>
+              <dd>
+                5 copies maximum dans <code>sauvegardes/</code> ; la plus ancienne
+                s'efface à chaque nouvelle.
+              </dd>
+              <dt>Restaurer</dt>
+              <dd>
+                <b>Restaurer</b> puis <b>Confirmer</b>. L'état actuel est copié
+                avant : son nom s'affiche, c'est votre marche arrière.
+              </dd>
+              <dt>Purger</dt>
+              <dd>
+                Trois portées, <b>deux clics</b> chacune ; copie de sécurité
+                automatique au préalable.
+              </dd>
+            </dl>
+            <div class="carte" style="margin-top: 2mm">
+              <p>
+                Jamais effacés par une purge : les <b>exercices et leurs tarifs</b>,
+                et les <b>numéros de reçus</b> déjà utilisés.
+              </p>
+            </div>
+          </section>
+
+          <section>
+            <h2>Où sont les fichiers</h2>
+            <dl class="duo">
+              <dt>Base</dt>
+              <dd><code>cotisations_v2.db</code>, à côté de l'application</dd>
+              <dt>Copies</dt>
+              <dd><code>sauvegardes/</code> — 5 fichiers datés</dd>
+              <dt>Exports</dt>
+              <dd><code>exports/</code> — CSV pour Excel</dd>
+            </dl>
+            <p style="margin: 1.6mm 0 0">
+              Données nominatives : copie par clé USB, jamais par messagerie ni sur
+              un site public.
+            </p>
+          </section>
+
+          <section>
+            <h2>Trois messages à connaître</h2>
+            <table class="msgs">
+              <tr>
+                <th>Message</th>
+                <th>Que faire</th>
+              </tr>
+              <tr>
+                <td class="citation">Montant invalide…</td>
+                <td>Saisir un entier : <code>3000</code>.</td>
+              </tr>
+              <tr>
+                <td class="citation">
+                  X F ne peuvent pas être affectés : Y F resteraient non ventilés
+                </td>
+                <td>Réduire le montant, ou changer d'exercice.</td>
+              </tr>
+              <tr>
+                <td class="citation">Suppression impossible…</td>
+                <td>Le membre a des enfants ou des versements.</td>
+              </tr>
+            </table>
+          </section>
+        </div>
+      </div>
+
+      <footer class="pied">
+        <span>
+          Mode d'emploi complet : <b>GUIDE_UTILISATEUR.md</b> — encaisser,
+          imprimer, sauvegarder, restaurer, purger.
+        </span>
+        <span>
+          Essai sans risque : <b>Sauvegardes → Ouvrir une démonstration</b>
+        </span>
+      </footer>
+    </main>
+  </body>
+</html>

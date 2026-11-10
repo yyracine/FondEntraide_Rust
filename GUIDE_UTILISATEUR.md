@@ -246,12 +246,28 @@ clé USB ou un disque externe suffit pour une copie hors du poste.
 | « Copie abîmée » / « schéma … attendu » | Cette copie n'est pas restaurable : en choisir une autre, plus récente. |
 | « Base introuvable ou illisible » | Vérifier que `cotisations_v2.db` est bien à côté de l'exécutable, ou restaurer une copie. |
 
----
-
-## 14. Fin de journée — la check-list
+---## 14. Fin de journée — la check-list
 
 1. Les versements de la journée sont saisis (compteurs cohérents en haut).
 2. **Sauvegardes → Sauvegarder maintenant**.
 3. Le message de confirmation donne le nom de la copie : notez-le si vous
-   tenez un cahier.
+tenez un cahier.
 4. Fermez la fenêtre.
+
+---
+
+## Annexe — aide-mémoire A4
+
+Pour le poste de caisse, `aide-memoire.html` réunit l'essentiel sur **une seule
+page A4** : les six gestes de l'encaissement, l'impression du reçu, l'annulation
+d'un versement, la check-list de fin de journée, sauvegarder/restaurer/purger,
+l'emplacement des fichiers et les trois messages d'erreur les plus fréquents.
+
+Double-cliquez le fichier (il s'ouvre dans le navigateur), puis **Ctrl+P** : le
+format A4, les marges et la mise en page sont déjà réglés, et la barre
+« Imprimer » ne sort pas sur la feuille. Vérifiez « A4 » et « Portrait » dans la
+boîte d'impression, puis imprimez.
+
+Une version PDF est fournie à côté : `aide-memoire.pdf` — une page A4, sans
+en-tête ni pied de page du navigateur. Elle s'imprime directement ou s'envoie à
+qui doit tenir la caisse.
