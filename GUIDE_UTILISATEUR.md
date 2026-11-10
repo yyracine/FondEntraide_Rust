@@ -20,6 +20,11 @@ familles, de membres et total encaissé.
 S'il n'y a pas de raccourci, lancez `fonds-app.exe` : l'application cherche la
 base à côté de l'exécutable, puis à la racine du projet.
 
+Si Windows affiche « Windows a protégé votre PC » au premier lancement de
+l'installeur, c'est que le fichier n'est pas signé : cliquez **Informations
+complémentaires**, puis **Exécuter quand même**. L'avertissement disparaîtra
+seul si le fichier devient un jour signé et connu de Windows.
+
 ### Mode démonstration
 
 Pour essayer sans risque : **Sauvegardes → Démonstration → « Ouvrir une

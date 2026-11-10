@@ -112,4 +112,69 @@ Le `fonds-app.exe` installé doit avoir le même SHA-256 que
 avant d'avoir fini : laissez quelques secondes avant de constater la
 disparition des raccourcis et de la clé de registre.
 
+### Signature numérique et SmartScreen
+
+Un installeur non signé déclenche « Windows a protégé votre PC » :
+l'utilisateur doit ouvrir « Informations complémentaires » puis « Exécuter quand
+même », et une stratégie d'entreprise peut l'en empêcher. C'est l'état actuel de
+`Fonds d'Entraide_0.1.0_x64-setup.exe`.
+
+**Ce qui ne marche plus.** Depuis 2024, un certificat EV ne supprime plus
+l'avertissement au premier téléchargement. Microsoft documente qu'un fichier
+signé OV, EV ou via Artifact Signing affiche le même message d'éditeur non
+reconnu tant que la réputation n'est pas établie, et que cette réputation est
+liée à l'empreinte du fichier : chaque nouvelle version repart de zéro. Un
+certificat auto-signé se comporte exactement comme une absence de signature.
+
+| Option | Coût | Effet SmartScreen | Remarque |
+|---|---|---|---|
+| Azure Artifact Signing (ex-Trusted Signing) | ~10 $/mois | Avertissement au début, réputation qui monte avec une identité constante | Recommandé hors Store, pas de jeton matériel |
+| Certificat OV (DigiCert, Sectigo…) | 150–300 $/an | Identique | Certificat sur jeton ou HSM depuis juin 2023 |
+| Certificat EV | 400 $+/an | Aucun avantage depuis 2024 | Inutile de payer pour SmartScreen |
+| Microsoft Store | compte développeur | Aucun avertissement, Microsoft re-signe | Contraintes de publication |
+| Auto-signé | gratuit | Identique à non signé | Tests internes uniquement |
+
+Avec un certificat OV déjà présent dans le magasin Windows, Tauri signe
+nativement l'application et l'installeur :
+
+```json
+"bundle": {
+  "windows": {
+    "certificateThumbprint": "A1B1A2B2A3B3A4B4A5B5A6B6A7B7A8B8A9B9A0B0",
+    "digestAlgorithm": "sha256",
+    "timestampUrl": "http://timestamp.digicert.com"
+  }
+}
+```
+
+Avec Artifact Signing, c'est `signCommand` qui appelle le CLI Azure (`%1` reçoit
+le fichier à signer) :
+
+```json
+"bundle": {
+  "windows": {
+    "signCommand": "artifact-signing-cli -e https://wus2.codesigning.azure.net -a <compte> -c <profil> -d \"Fonds d'Entraide\" %1"
+  }
+}
+```
+
+Vérification après signature :
+
+```
+Get-AuthenticodeSignature "Fonds d'Entraide_0.1.0_x64-setup.exe" |
+  Format-List Status, SignerCertificate
+```
+
+`Status` doit être `Valid`, avec le nom de l'éditeur dans le certificat.
+Désactiver SmartScreen chez l'utilisateur, cocher « Débloquer » dans les
+propriétés du fichier ou signer avec un certificat auto-signé ne change rien à
+l'avertissement : seule la réputation du fichier et de l'éditeur, ou une
+distribution par le Microsoft Store, le font disparaître.
+
+Pour ce projet, l'installeur se transmet de la main à la main (clé USB, dépôt
+local) : la signature n'apporte rien tant que le fichier ne circule pas par
+téléchargement, et un avertissement expliqué vaut mieux qu'un certificat payé
+non rentabilisé. Si la diffusion passe un jour par un site, Artifact Signing est
+la voie la moins chère, en acceptant les avertissements des premières versions.
+
 
