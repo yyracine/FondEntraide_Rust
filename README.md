@@ -1,4 +1,4 @@
-# Cotisations – Fonds d'entraide (clans KOUADIO AMBOFF, YAOCRE, ADJOUA MALA, AGO, TCHOUWA, KACOUTIE EDJAPA, ASSOMOU)
+# Cotisations – Fonds d'entraide 
 
 > **Reprise de session : lire `RESUME.md` en premier.** Il contient l'état
 > d'avancement, les règles métier, les décisions prises et la prochaine
