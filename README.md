@@ -61,6 +61,10 @@ Le portage vit dans `core/` (métier, testé par `cargo test`), `src-tauri/`
 (coquille Tauri 2) et `ui/` (interface embarquée). Le schéma est celui de
 `schema_v2.sql` ; les bases et les sauvegardes restent locales.
 
+Le mode d'emploi pas à pas du caissier est dans
+[`GUIDE_UTILISATEUR.md`](GUIDE_UTILISATEUR.md) : encaisser, imprimer un reçu,
+sauvegarder, restaurer, purger.
+
 ### Mode démonstration
 
 ```
