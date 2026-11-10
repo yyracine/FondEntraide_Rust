@@ -8,6 +8,11 @@
 //!
 //! Les montants partent en entiers nus, sans séparateur de milliers : un
 //! « 1 807 000 » serait lu comme du texte et ne s'additionnerait pas.
+//!
+//! Un champ qui commence par `=`, `+`, `@`, une tabulation ou un retour
+//! chariot est préfixé d'une apostrophe : Excel et LibreOffice le liraient
+//! sinon comme une formule (injection de formule). `-` n'est neutralisé que
+//! s'il n'ouvre pas un nombre, pour que `-3000` reste un montant.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -50,15 +55,34 @@ fn ligne_csv(champs: &[String]) -> String {
     ligne
 }
 
+/// Vrai si un tableur interpréterait le champ comme une formule.
+fn commence_par_formule(champ: &str) -> bool {
+    let mut caracteres = champ.chars();
+    match caracteres.next() {
+        Some('=') | Some('+') | Some('@') | Some('\t') | Some('\r') => true,
+        Some('-') => !caracteres.all(|c| c.is_ascii_digit() || c == '.' || c == ','),
+        _ => false,
+    }
+}
+
 /// Un champ n'est mis entre guillemets que s'il le faut, et ses guillemets
-/// sont doublés — la règle CSV ordinaire.
+/// sont doublés — la règle CSV ordinaire. Les formules sont neutralisées par
+/// une apostrophe en tête, marqueur de texte ignoré à l'affichage par Excel
+/// comme par LibreOffice.
 fn champ_csv(champ: &str) -> String {
-    let a_proteger =
-        champ.contains(';') || champ.contains('"') || champ.contains('\n') || champ.contains('\r');
-    if a_proteger {
-        format!("\"{}\"", champ.replace('"', "\"\""))
+    let valeur = if commence_par_formule(champ) {
+        format!("'{champ}")
     } else {
         champ.to_string()
+    };
+    let a_proteger = valeur.contains(';')
+        || valeur.contains('"')
+        || valeur.contains('\n')
+        || valeur.contains('\r');
+    if a_proteger {
+        format!("\"{}\"", valeur.replace('"', "\"\""))
+    } else {
+        valeur
     }
 }
 
@@ -152,6 +176,35 @@ mod tests {
         assert!(contenu.contains("Akesse;3000"));
 
         let _ = fs::remove_dir_all(&racine);
+    }
+
+    #[test]
+    fn une_formule_est_neutralisee_mais_un_montant_negatif_reste_numerique() {
+        let contenu = csv(
+            &[texte("Nom"), texte("Note")],
+            &[
+                vec![
+                    texte("=HYPERLINK(\"http://exemple\")"),
+                    texte("+221 77 000 00 00"),
+                ],
+                vec![texte("@SUM(A1)"), texte("-3000")],
+                vec![texte("-1+2"), texte("déjà du texte")],
+            ],
+        );
+        assert!(
+            contenu.contains("'=HYPERLINK"),
+            "une formule = est précédée d'une apostrophe : {contenu}"
+        );
+        assert!(contenu.contains(";'+221 77 000 00 00"), "+ neutralisé");
+        assert!(contenu.contains("'@SUM(A1)"), "@ neutralisé");
+        assert!(
+            contenu.contains(";-3000\r\n"),
+            "un montant négatif reste un nombre : {contenu}"
+        );
+        assert!(
+            contenu.contains("'-1+2"),
+            "- suivi d'une expression neutralisé"
+        );
     }
 
     #[test]
