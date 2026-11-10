@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use fonds_core::rusqlite::Connection;
-use fonds_core::{db, domaine, hierarchie, membres, noeuds, ventilation};
+use fonds_core::{db, domaine, hierarchie, membres, noeuds, tarifs, ventilation};
 
 /// État partagé : une connexion, ou l'erreur qui empêche de l'ouvrir (affichée
 /// dans l'interface plutôt que de faire tomber la fenêtre).
@@ -302,6 +302,22 @@ fn supprimer_noeud(
     noeuds::supprimer(&mut con, niveau, id).map_err(|e| e.to_string())
 }
 
+/// Change le tarif mensuel d'un exercice à partir d'un mois donné. Les mois
+/// antérieurs gardent leur montant, même impayés.
+#[tauri::command]
+fn changer_tarif(
+    etat: tauri::State<Etat>,
+    exercice_id: i64,
+    montant: i64,
+    date_effet: String,
+) -> Result<tarifs::TarifChange, String> {
+    let verrou = etat.base.as_ref().map_err(|e| e.clone())?;
+    let mut con = verrou
+        .lock()
+        .map_err(|_| "verrou de base empoisonné".to_string())?;
+    tarifs::changer(&mut con, exercice_id, montant, &date_effet).map_err(|e| e.to_string())
+}
+
 fn main() {
     let etat = Etat::ouvrir();
 
@@ -324,6 +340,7 @@ fn main() {
             creer_noeud,
             renommer_noeud,
             supprimer_noeud,
+            changer_tarif,
             clans,
             grandes_familles,
             lignees,

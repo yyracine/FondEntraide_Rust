@@ -19,6 +19,7 @@ pub mod hierarchie;
 pub mod membres;
 pub mod noeuds;
 pub mod recus;
+pub mod tarifs;
 pub mod ventilation;
 
 // Réexporté pour que la coquille Tauri n'ait pas à dépendre de rusqlite

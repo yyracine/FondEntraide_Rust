@@ -53,6 +53,9 @@ pub struct Exercice {
     pub libelle: String,
     pub date_debut: String,
     pub date_fin: String,
+    /// Tarif mensuel en vigueur pour les échéances créées à partir de
+    /// maintenant (le montant déjà figé de chaque échéance ne bouge pas).
+    pub montant_mensuel: i64,
     /// Année de début, utilisée comme étiquette courte quand l'exercice
     /// couvre une année civile.
     pub annee: i32,
@@ -96,7 +99,7 @@ pub fn resume(con: &Connection) -> Result<Resume, Erreur> {
 /// contient la date du jour.
 pub fn exercices(con: &Connection) -> Result<Vec<Exercice>, Erreur> {
     let mut stmt = con.prepare(
-        "SELECT id, libelle, date_debut, date_fin,
+        "SELECT id, libelle, date_debut, date_fin, montant_mensuel,
                 CAST(substr(date_debut, 1, 4) AS INTEGER) AS annee,
                 statut,
                 date('now', 'localtime') BETWEEN date(date_debut) AND date(date_fin)
@@ -110,9 +113,10 @@ pub fn exercices(con: &Connection) -> Result<Vec<Exercice>, Erreur> {
             libelle: l.get(1)?,
             date_debut: l.get(2)?,
             date_fin: l.get(3)?,
-            annee: l.get(4)?,
-            statut: l.get(5)?,
-            courant: l.get(6)?,
+            montant_mensuel: l.get(4)?,
+            annee: l.get(5)?,
+            statut: l.get(6)?,
+            courant: l.get(7)?,
         })
     })?;
     let mut resultat = Vec::new();

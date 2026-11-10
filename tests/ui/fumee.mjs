@@ -257,10 +257,17 @@ const reponses = {
     arrieres: 6_000,
   },
   exercices: [
-    { id: 1, libelle: "Campagne 2026", date_debut: "2026-01-01", date_fin: "2026-12-31", annee: 2026, statut: "ouverte", courant: true },
-    { id: 2, libelle: "Campagne 2025", date_debut: "2025-01-01", date_fin: "2025-12-31", annee: 2025, statut: "fermee", courant: false },
-    { id: 3, libelle: "Campagne 2024", date_debut: "2024-01-01", date_fin: "2024-12-31", annee: 2024, statut: "fermee", courant: false },
+    { id: 1, libelle: "Campagne 2026", date_debut: "2026-01-01", date_fin: "2026-12-31", montant_mensuel: 1_000, annee: 2026, statut: "ouverte", courant: true },
+    { id: 2, libelle: "Campagne 2025", date_debut: "2025-01-01", date_fin: "2025-12-31", montant_mensuel: 1_000, annee: 2025, statut: "fermee", courant: false },
+    { id: 3, libelle: "Campagne 2024", date_debut: "2024-01-01", date_fin: "2024-12-31", montant_mensuel: 1_000, annee: 2024, statut: "fermee", courant: false },
   ],
+  changer_tarif: {
+    montant: 1_500,
+    annee_effet: 2026,
+    mois_effet: 4,
+    modifies: 8,
+    conserves: 1,
+  },
   clans: [{ id: 2, nom: "YAOCRE", description: null }],
   grandes_familles: [{ id: 7, nom: "YAOCRE APPIA", clan_id: 2 }],
   lignees: [{ id: 18, nom: "YAOCRE APPIA", grande_famille_id: 7 }],
@@ -715,6 +722,36 @@ assert.ok(
   "les compteurs sont relus après une suppression",
 );
 assert.equal($("supprimer-clan").textContent, "✕");
+
+// 12. tarif : le changement prend effet au mois choisi.
+$("changer-tarif").click();
+await attendre();
+
+assert.equal($("voile-tarif").hidden, false, "le tarif s'ouvre");
+assert.equal($("tarif-montant").value, "1000", "le tarif en vigueur est prérempli");
+assert.match($("tarif-mois").value, /^\d{4}-\d{2}$/, "un mois d'effet est proposé");
+
+$("tarif-montant").value = "1500";
+$("tarif-mois").value = "2026-04";
+$("appliquer-tarif").click();
+await attendre();
+
+const tarif = dernierAppel("changer_tarif");
+assert.equal(tarif?.args.exerciceId, 1);
+assert.equal(tarif?.args.montant, 1_500);
+assert.equal(tarif?.args.dateEffet, "2026-04-01", "le mois d'effet part au premier jour");
+assert.match($("tarif-note").textContent, /avril 2026/);
+assert.match($("tarif-note").textContent, /8 mois/);
+assert.match($("tarif-actuel").textContent, /1[\s\u202f]500 F/);
+assert.equal($("appliquer-tarif").disabled, true, "le bouton est désarmé après application");
+assert.equal($("appliquer-tarif").textContent, "Tarif appliqué");
+assert.equal($("annuler-tarif").textContent, "Fermer", "fermer n'annonce pas une annulation");
+
+// Une nouvelle valeur réarme le bouton.
+$("tarif-montant").value = "1600";
+$("tarif-montant").input();
+assert.equal($("appliquer-tarif").disabled, false);
+assert.equal($("appliquer-tarif").textContent, "Appliquer le tarif");
 
 // 9. aucun handler n'a levé
 assert.deepEqual(

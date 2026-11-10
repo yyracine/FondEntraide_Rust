@@ -58,6 +58,9 @@ pub enum Erreur {
     #[error("un nœud de ce nom existe déjà : {0}")]
     NomDejaPris(String),
 
+    #[error("le tarif doit être supérieur à zéro")]
+    TarifInvalide,
+
     #[error(
         "paiement incohérent après écriture : montant total différent de la somme des affectations"
     )]

@@ -92,6 +92,7 @@
           <button type="button" class="secondaire" id="nouveau-membre">
             Nouveau membre
           </button>
+          <button type="button" class="secondaire" id="changer-tarif">Tarif</button>
         </div>
       </div>
       <div class="annees" id="annees"></div>
@@ -189,6 +190,37 @@
 
           <h4 class="fiche-section">Versements</h4>
           <div class="versements" id="fiche-versements"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="voile" id="voile-tarif" hidden>
+      <div class="feuille petite" role="dialog" aria-modal="true" aria-labelledby="tarif-titre">
+        <header class="feuille-entete">
+          <div>
+            <h3 id="tarif-titre">Tarif</h3>
+            <p class="fil" id="tarif-actuel"></p>
+          </div>
+          <button type="button" class="fermer" id="fermer-tarif" aria-label="Fermer">×</button>
+        </header>
+        <div class="feuille-corps">
+          <div class="champs">
+            <label class="champ">
+              <span>Nouveau tarif mensuel (FCFA)</span>
+              <input id="tarif-montant" type="number" min="1" step="1" inputmode="numeric" />
+            </label>
+            <label class="champ">
+              <span>À compter de</span>
+              <input id="tarif-mois" type="month" />
+            </label>
+          </div>
+          <p class="note" id="tarif-note"></p>
+          <div class="actions">
+            <button type="button" class="secondaire" id="annuler-tarif">Fermer</button>
+            <button type="button" class="primaire" id="appliquer-tarif">
+              Appliquer le tarif
+            </button>
+          </div>
         </div>
       </div>
     </div>

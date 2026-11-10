@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 
 use chrono::{Datelike, NaiveDate};
-use fonds_core::{db, erreur::Erreur, membres, noeuds, ventilation};
+use fonds_core::{db, erreur::Erreur, membres, noeuds, tarifs, ventilation};
 use rusqlite::{params, Connection};
 
 struct Base {
@@ -931,4 +931,79 @@ fn la_hierarchie_se_cree_se_renomme_et_se_protege() {
     noeuds::supprimer(&mut con, noeuds::Niveau::Lignee, lignee).expect("lignée");
     noeuds::supprimer(&mut con, noeuds::Niveau::GrandeFamille, gf).expect("grande famille");
     noeuds::supprimer(&mut con, noeuds::Niveau::Clan, clan).expect("clan");
+}
+
+// ------------------------------------------------------------------
+// 11. Tarif : changement en cours d'année, au mois choisi.
+// ------------------------------------------------------------------
+#[test]
+fn un_tarif_change_en_cours_d_annee_ne_vaut_que_pour_les_mois_suivants() {
+    let b = base();
+    let mut con = ouvrir(&b);
+    let famille = premiere_famille(&con);
+    let membre = creer_membre(&con, famille, "ZZTARIF", Some("2037-01-01"), None);
+    let exercice = creer_exercice(
+        &con,
+        "Tarif 2037",
+        jour(2037, 1, 1),
+        jour(2037, 12, 31),
+        1_000,
+    )
+    .expect("exercice");
+
+    // Janvier et février réglés à l'ancien tarif, le 15 mars.
+    ventilation::ventiler(
+        &mut con,
+        membre,
+        exercice,
+        2_000,
+        jour(2037, 3, 15),
+        "especes",
+    )
+    .expect("janvier et février");
+
+    let change = tarifs::changer(&mut con, exercice, 1_500, "2037-04-01").expect("changement");
+    assert_eq!((change.annee_effet, change.mois_effet), (2037, 4));
+    assert_eq!(change.modifies, 9, "avril à décembre");
+    assert_eq!(change.conserves, 3, "janvier à mars gardent 1 000");
+
+    let grille =
+        ventilation::grille_membre(&con, membre, exercice, "2037-03-20").expect("grille du membre");
+    assert_eq!(grille[0].du, 1_000, "janvier garde l'ancien tarif");
+    assert_eq!(grille[2].du, 1_000, "mars, pourtant impayé, garde 1 000");
+    assert_eq!(grille[3].du, 1_500, "avril prend le nouveau tarif");
+    assert_eq!(grille[11].du, 1_500);
+
+    let solde = ventilation::solde(&con, membre, exercice).unwrap().unwrap();
+    assert_eq!(solde.du, 3_000 + 9 * 1_500);
+    assert_eq!(solde.paye, 2_000);
+    assert_eq!(solde.reste, 1_000 + 9 * 1_500);
+
+    // Tout régler, puis changer encore : aucun mois réglé ne bouge.
+    ventilation::ventiler(
+        &mut con,
+        membre,
+        exercice,
+        solde.reste,
+        jour(2037, 12, 31),
+        "especes",
+    )
+    .expect("solde complet");
+    let apres =
+        tarifs::changer(&mut con, exercice, 2_000, "2037-04-01").expect("second changement");
+    assert_eq!(apres.modifies, 0, "aucun mois déjà réglé ne change");
+    assert_eq!(apres.conserves, 12, "les douze mois restent à leur montant");
+    let grille = ventilation::grille_membre(&con, membre, exercice, "2037-12-31")
+        .expect("grille après second changement");
+    assert!(grille.iter().all(|m| m.du <= 1_500));
+
+    // Le mois d'effet doit appartenir à l'exercice, et le tarif être positif.
+    assert!(matches!(
+        tarifs::changer(&mut con, exercice, 1_000, "2038-01-01"),
+        Err(Erreur::ChampIncoherent(_))
+    ));
+    assert!(matches!(
+        tarifs::changer(&mut con, exercice, 0, "2037-06-01"),
+        Err(Erreur::TarifInvalide)
+    ));
 }

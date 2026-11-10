@@ -230,6 +230,142 @@ async function chargerExercices() {
   majEntetes();
 }
 
+/* --------------------------- tarif de l'exercice ----------------------- */
+function moisLisible(annee, mois) {
+  return `${MOIS[mois - 1]} ${annee}`;
+}
+
+/**
+ * Mois d'effet proposé : le suivant, borné à la période de l'exercice. Un
+ * changement décidé en mars prend effet en avril, jamais sur le mois en cours.
+ */
+function moisSuivantDans(exercice) {
+  const d = new Date();
+  let annee = d.getFullYear();
+  let mois = d.getMonth() + 2;
+  if (mois > 12) {
+    mois = 1;
+    annee += 1;
+  }
+  let cle = `${annee}-${String(mois).padStart(2, "0")}`;
+  const debut = exercice?.date_debut?.slice(0, 7);
+  const fin = exercice?.date_fin?.slice(0, 7);
+  if (debut && cle < debut) cle = debut;
+  if (fin && cle > fin) cle = fin;
+  return cle;
+}
+
+/** Réarme le bouton dès qu'une valeur change (nouveau tarif ou nouveau mois). */
+function armerTarif() {
+  $("appliquer-tarif").disabled = false;
+  $("appliquer-tarif").textContent = "Appliquer le tarif";
+}
+
+function ouvrirTarif() {
+  armerTarif();
+  const exercice = exercicePourPaiement();
+  if (!exercice) {
+    afficherErreur("Aucun exercice disponible pour changer le tarif.");
+    return;
+  }
+  effacerErreur();
+  $("tarif-titre").textContent = `Tarif de ${nomExercice(exercice)}`;
+  $("annuler-tarif").textContent = "Fermer";
+  $("tarif-actuel").textContent =
+    `Tarif en vigueur : ${fcf(exercice.montant_mensuel ?? 0)} par mois`;
+  $("tarif-montant").value = String(exercice.montant_mensuel ?? "");
+  $("tarif-mois").value = moisSuivantDans(exercice);
+  $("tarif-note").textContent =
+    "Les mois antérieurs gardent leur montant, même impayés ; les mois déjà réglés ne changent pas. « Fermer » n'annule pas un tarif déjà appliqué.";
+  $("voile-tarif").hidden = false;
+  $("tarif-montant").focus?.();
+}
+
+async function rafraichirApresTarif() {
+  await chargerMembres();
+  await chargerResume();
+  if (membreFiche) await rafraichirSoldesFiche();
+  if (membreCourant) {
+    const exercice = exerciceDuPaiement();
+    const aJour = await invoke("membre", {
+      membreId: membreCourant.id,
+      exerciceId: exercice ? exercice.id : null,
+    });
+    if (aJour) {
+      membreCourant = { ...membreCourant, ...aJour };
+      majSoldes(membreCourant);
+    }
+  }
+}
+
+async function appliquerTarif() {
+  const exercice = exercicePourPaiement();
+  if (!exercice) return;
+
+  const montant = Number($("tarif-montant").value);
+  const mois = $("tarif-mois").value;
+  if (!Number.isInteger(montant) || montant <= 0) {
+    $("tarif-note").textContent = "Le tarif doit être un entier supérieur à zéro.";
+    return;
+  }
+  if (!/^\d{4}-\d{2}$/.test(mois)) {
+    $("tarif-note").textContent = "Choisissez le mois d'effet.";
+    return;
+  }
+
+  const bouton = $("appliquer-tarif");
+  bouton.disabled = true;
+  try {
+    const resultat = await invoke("changer_tarif", {
+      exerciceId: exercice.id,
+      montant,
+      dateEffet: `${mois}-01`,
+    });
+
+    // Le tarif en vigueur suit, sans recharger les puces (cela remettrait
+    // l'exercice courant à la place de celui que l'utilisateur a choisi).
+    for (const e of etat.exercices) {
+      if (e.id === exercice.id) e.montant_mensuel = resultat.montant;
+    }
+    if (etat.exercice && etat.exercice.id === exercice.id) {
+      etat.exercice.montant_mensuel = resultat.montant;
+    }
+
+    $("tarif-actuel").textContent =
+      `Tarif en vigueur : ${fcf(resultat.montant)} par mois`;
+    $("tarif-note").textContent =
+      `À partir de ${moisLisible(resultat.annee_effet, resultat.mois_effet)} : ` +
+      `${pluriel(resultat.modifies, "mois")} à ${fcf(resultat.montant)}` +
+      (resultat.conserves > 0
+        ? ` · ${pluriel(resultat.conserves, "mois")} conservé${resultat.conserves > 1 ? "s" : ""}`
+        : "") +
+      ". Enregistré : fermer cet écran ne défait pas ce changement.";
+
+    // Le tarif est écrit : le bouton reste désarmé tant que rien ne change,
+    // sinon on croit pouvoir annuler une modification déjà enregistrée.
+    bouton.disabled = true;
+    bouton.textContent = "Tarif appliqué";
+    effacerErreur();
+    await rafraichirApresTarif();
+  } catch (erreur) {
+    bouton.disabled = false;
+    $("tarif-note").textContent = String(erreur);
+  }
+}
+
+$("changer-tarif").addEventListener("click", () => ouvrirTarif());
+$("tarif-montant").addEventListener("input", armerTarif);
+$("tarif-mois").addEventListener("input", armerTarif);
+$("fermer-tarif").addEventListener("click", () => {
+  $("voile-tarif").hidden = true;
+});
+$("annuler-tarif").addEventListener("click", () => {
+  $("voile-tarif").hidden = true;
+});
+$("appliquer-tarif").addEventListener("click", () => {
+  appliquerTarif().catch((e) => afficherErreur(e));
+});
+
 /* ------------------------------ navigation ----------------------------- */
 function reinitialiserApres(niveau) {
   if (niveau === "clan") {
