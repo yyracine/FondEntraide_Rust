@@ -25,6 +25,33 @@ pub enum Erreur {
     #[error("date illisible en base : {0}")]
     DateInvalide(String),
 
+    #[error("date attendue au format AAAA-MM-JJ : {0}")]
+    DateMalFormee(String),
+
+    #[error("{0} est obligatoire")]
+    ChampRequis(&'static str),
+
+    #[error("{0}")]
+    ChampIncoherent(String),
+
+    #[error("famille inconnue : {0}")]
+    FamilleInconnue(i64),
+
+    #[error("statut inconnu : {0}")]
+    StatutInvalide(String),
+
+    #[error("sexe attendu M ou F : {0}")]
+    SexeInvalide(String),
+
+    #[error("le parent doit appartenir à la même famille que le membre")]
+    ParentHorsFamille,
+
+    #[error("parent invalide : {0}")]
+    ParentInvalide(String),
+
+    #[error("suppression impossible : {0}")]
+    SuppressionRefusee(String),
+
     #[error(
         "paiement incohérent après écriture : montant total différent de la somme des affectations"
     )]

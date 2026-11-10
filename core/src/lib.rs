@@ -16,6 +16,7 @@ pub mod db;
 pub mod domaine;
 pub mod erreur;
 pub mod hierarchie;
+pub mod membres;
 pub mod recus;
 pub mod ventilation;
 

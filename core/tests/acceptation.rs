@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 
 use chrono::{Datelike, NaiveDate};
-use fonds_core::{db, erreur::Erreur, ventilation};
+use fonds_core::{db, erreur::Erreur, membres, ventilation};
 use rusqlite::{params, Connection};
 
 struct Base {
@@ -726,4 +726,154 @@ fn la_grille_des_douze_mois_distingue_paye_partiel_et_impaye() {
     assert!(!grille[0].assujetti, "janvier précède l'entrée");
     assert_eq!((grille[0].du, grille[0].reste), (0, 0));
     assert!(grille[6].assujetti, "juillet est dans la période");
+}
+
+// ------------------------------------------------------------------
+//  9. Gestion des membres : création, modification, suppression.
+// ------------------------------------------------------------------
+fn fiche(famille: i64, nom: &str) -> membres::FicheMembre {
+    membres::FicheMembre {
+        id: None,
+        famille_id: famille,
+        parent_id: None,
+        nom: nom.to_string(),
+        prenom: Some("Essai".to_string()),
+        telephone: Some("07 00 00 00 00".to_string()),
+        sexe: Some("M".to_string()),
+        ordre_fratrie: Some(2),
+        statut: "actif".to_string(),
+        date_entree: Some("2035-01-01".to_string()),
+        date_sortie: None,
+        notes: None,
+    }
+}
+
+#[test]
+fn un_membre_cree_puis_modifie_garde_ses_champs() {
+    let b = base();
+    let mut con = ouvrir(&b);
+    let famille = premiere_famille(&con);
+
+    let id = membres::enregistrer(&mut con, &fiche(famille, "ZZCRÉÉ")).expect("création");
+    let relu = membres::edition(&con, id).expect("relecture");
+    assert_eq!(relu.nom, "ZZCRÉÉ");
+    assert_eq!(relu.prenom.as_deref(), Some("Essai"));
+    assert_eq!(relu.telephone.as_deref(), Some("07 00 00 00 00"));
+    assert_eq!(relu.ordre_fratrie, Some(2));
+
+    let mut modifiee = relu.clone();
+    modifiee.id = Some(id);
+    modifiee.prenom = Some("Corrigé".to_string());
+    modifiee.statut = "inactif".to_string();
+    modifiee.telephone = None;
+    membres::enregistrer(&mut con, &modifiee).expect("modification");
+
+    let relu = membres::edition(&con, id).expect("relecture après modification");
+    assert_eq!(relu.prenom.as_deref(), Some("Corrigé"));
+    assert_eq!(relu.statut, "inactif");
+    assert_eq!(relu.telephone, None, "un champ vidé le reste");
+
+    // Le nom vide est refusé, comme une date hors format ISO.
+    let mut sans_nom = fiche(famille, "   ");
+    sans_nom.id = None;
+    assert!(matches!(
+        membres::enregistrer(&mut con, &sans_nom),
+        Err(Erreur::ChampRequis(_))
+    ));
+    let mut date_fausse = fiche(famille, "ZZDATE");
+    date_fausse.id = None;
+    date_fausse.date_entree = Some("01/01/2035".to_string());
+    assert!(matches!(
+        membres::enregistrer(&mut con, &date_fausse),
+        Err(Erreur::DateMalFormee(_))
+    ));
+}
+
+#[test]
+fn le_parent_est_borne_a_la_famille_et_sans_cycle() {
+    let b = base();
+    let mut con = ouvrir(&b);
+
+    let mut stmt = con
+        .prepare("SELECT id FROM familles ORDER BY id LIMIT 2")
+        .unwrap();
+    let familles: Vec<i64> = stmt
+        .query_map([], |l| l.get(0))
+        .unwrap()
+        .map(|r| r.unwrap())
+        .collect();
+    drop(stmt);
+
+    let pere = membres::enregistrer(&mut con, &fiche(familles[0], "ZZPÈRE")).expect("père");
+    let mut fils = fiche(familles[0], "ZZFILS");
+    fils.parent_id = Some(pere);
+    let fils = membres::enregistrer(&mut con, &fils).expect("fils");
+
+    // Un parent d'une autre famille est refusé avant d'atteindre SQLite.
+    let mut etranger = fiche(familles[1], "ZZÉTRANGER");
+    etranger.parent_id = Some(pere);
+    assert!(matches!(
+        membres::enregistrer(&mut con, &etranger),
+        Err(Erreur::ParentHorsFamille)
+    ));
+
+    // Faire du fils le parent du père formerait une boucle.
+    let mut boucle = membres::edition(&con, pere).unwrap();
+    boucle.parent_id = Some(fils);
+    assert!(matches!(
+        membres::enregistrer(&mut con, &boucle),
+        Err(Erreur::ParentInvalide(_))
+    ));
+
+    // Les candidats ne proposent jamais le membre lui-même.
+    let candidats = membres::candidats_parent(&con, familles[0], Some(pere)).unwrap();
+    assert!(candidats.iter().all(|c| c.id != pere));
+    assert!(candidats.iter().any(|c| c.id == fils));
+}
+
+#[test]
+fn la_suppression_protege_descendants_et_versements() {
+    let b = base();
+    let mut con = ouvrir(&b);
+    let famille = premiere_famille(&con);
+
+    let pere = membres::enregistrer(&mut con, &fiche(famille, "ZZSUPPÈRE")).expect("père");
+    let mut enfant = fiche(famille, "ZZENFANT");
+    enfant.parent_id = Some(pere);
+    let enfant = membres::enregistrer(&mut con, &enfant).expect("enfant");
+
+    match membres::supprimer(&mut con, pere) {
+        Err(Erreur::SuppressionRefusee(message)) => assert!(message.contains("descendant")),
+        autre => panic!("un membre avec descendant doit être protégé : {autre:?}"),
+    }
+
+    let exercice = creer_exercice(
+        &con,
+        "Suppression 2036",
+        jour(2036, 1, 1),
+        jour(2036, 12, 31),
+        1_000,
+    )
+    .expect("exercice");
+    let payeur = membres::enregistrer(&mut con, &fiche(famille, "ZZPAYEUR")).expect("payeur");
+    ventilation::ventiler(
+        &mut con,
+        payeur,
+        exercice,
+        1_000,
+        jour(2036, 2, 10),
+        "especes",
+    )
+    .expect("versement");
+    assert!(matches!(
+        membres::supprimer(&mut con, payeur),
+        Err(Erreur::SuppressionRefusee(_))
+    ));
+
+    // Sans descendant ni versement, la suppression passe.
+    membres::supprimer(&mut con, enfant).expect("suppression de l'enfant");
+    assert!(matches!(
+        membres::edition(&con, enfant),
+        Err(Erreur::MembreInconnu(_))
+    ));
 }

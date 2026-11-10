@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use fonds_core::rusqlite::Connection;
-use fonds_core::{db, domaine, hierarchie, ventilation};
+use fonds_core::{db, domaine, hierarchie, membres, ventilation};
 
 /// État partagé : une connexion, ou l'erreur qui empêche de l'ouvrir (affichée
 /// dans l'interface plutôt que de faire tomber la fenêtre).
@@ -217,6 +217,47 @@ fn grille_membre(
     etat.avec(|con| ventilation::grille_membre(con, membre_id, exercice_id, &date_reference))
 }
 
+/// Écriture des membres : le formulaire envoie la fiche complète, le cœur
+/// vérifie (nom, statut, parent de la même famille, anti-cycle) et renvoie
+/// une erreur lisible plutôt qu'une contrainte SQLite.
+#[tauri::command]
+fn membre_edition(
+    etat: tauri::State<Etat>,
+    membre_id: i64,
+) -> Result<membres::FicheMembre, String> {
+    etat.avec(|con| membres::edition(con, membre_id))
+}
+
+#[tauri::command]
+fn parents_candidats(
+    etat: tauri::State<Etat>,
+    famille_id: i64,
+    exclure: Option<i64>,
+) -> Result<Vec<membres::CandidatParent>, String> {
+    etat.avec(|con| membres::candidats_parent(con, famille_id, exclure))
+}
+
+#[tauri::command]
+fn enregistrer_membre(
+    etat: tauri::State<Etat>,
+    fiche: membres::FicheMembre,
+) -> Result<i64, String> {
+    let verrou = etat.base.as_ref().map_err(|e| e.clone())?;
+    let mut con = verrou
+        .lock()
+        .map_err(|_| "verrou de base empoisonné".to_string())?;
+    membres::enregistrer(&mut con, &fiche).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn supprimer_membre(etat: tauri::State<Etat>, membre_id: i64) -> Result<(), String> {
+    let verrou = etat.base.as_ref().map_err(|e| e.clone())?;
+    let mut con = verrou
+        .lock()
+        .map_err(|_| "verrou de base empoisonné".to_string())?;
+    membres::supprimer(&mut con, membre_id).map_err(|e| e.to_string())
+}
+
 fn main() {
     let etat = Etat::ouvrir();
 
@@ -232,6 +273,10 @@ fn main() {
             paiements_membre,
             supprimer_paiement,
             grille_membre,
+            membre_edition,
+            parents_candidats,
+            enregistrer_membre,
+            supprimer_membre,
             clans,
             grandes_familles,
             lignees,

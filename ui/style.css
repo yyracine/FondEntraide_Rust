@@ -922,3 +922,30 @@ tbody tr.selection {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+/* ---------- formulaire de membre ---------- */
+.barre-outils {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.barre-outils input {
+  min-width: 220px;
+}
+
+.feuille-entete .fiche-outils {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.champ textarea {
+  padding: 9px 11px;
+  border: 1px solid var(--bord);
+  border-radius: 8px;
+  background: var(--panneau);
+  color: var(--texte);
+  font: inherit;
+  resize: vertical;
+}

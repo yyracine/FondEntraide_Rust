@@ -523,6 +523,164 @@ function fermerFiche() {
   membreFiche = null;
 }
 
+/* ----------------------- écrire la fiche d'un membre ------------------- */
+let membreEdite = null; // null : création
+let familleEditee = null;
+let suppressionArmee = false;
+
+function fermerFormulaire() {
+  $("voile-membre").hidden = true;
+  membreEdite = null;
+  familleEditee = null;
+  suppressionArmee = false;
+  $("supprimer-membre").textContent = "Supprimer le membre";
+  $("supprimer-membre").classList.remove("arme");
+}
+
+function optionTexte(valeur, libelle) {
+  const option = document.createElement("option");
+  option.value = valeur;
+  option.textContent = libelle;
+  return option;
+}
+
+/**
+ * Ouvre le formulaire : `membreId = null` crée un membre dans la famille
+ * affichée, sinon on relit la fiche complète (téléphone, dates, notes) que
+ * le tableau ne porte pas.
+ */
+async function ouvrirFormulaireMembre(membreId) {
+  effacerErreur();
+  suppressionArmee = false;
+  $("m-note").textContent = "";
+  $("supprimer-membre").textContent = "Supprimer le membre";
+  $("supprimer-membre").classList.remove("arme");
+
+  // La fiche arrive en camelCase (serde `rename_all`), comme elle est envoyée.
+  const detail = membreId
+    ? await invoke("membre_edition", { membreId })
+    : { familleId: etat.famille?.id ?? null, statut: "actif" };
+
+  if (!detail.familleId) {
+    afficherErreur("Sélectionnez d'abord une famille pour créer un membre.");
+    return;
+  }
+
+  membreEdite = membreId ?? null;
+  familleEditee = detail.familleId;
+  $("membre-titre").textContent = membreId ? "Modifier le membre" : "Nouveau membre";
+  $("membre-famille").textContent = etat.famille?.nom ?? "";
+
+  $("m-nom").value = detail.nom ?? "";
+  $("m-prenom").value = detail.prenom ?? "";
+  $("m-telephone").value = detail.telephone ?? "";
+  $("m-sexe").value = detail.sexe ?? "";
+  $("m-statut").value = detail.statut ?? "actif";
+  $("m-ordre").value = detail.ordreFratrie ?? "";
+  $("m-entree").value = detail.dateEntree ?? "";
+  $("m-sortie").value = detail.dateSortie ?? "";
+  $("m-notes").value = detail.notes ?? "";
+  $("supprimer-membre").hidden = !membreId;
+
+  const parent = $("m-parent");
+  parent.replaceChildren(optionTexte("", "— aucun —"));
+  const candidats = await invoke("parents_candidats", {
+    familleId: detail.familleId,
+    exclure: membreId ?? null,
+  });
+  for (const candidat of candidats) {
+    parent.append(optionTexte(String(candidat.id), candidat.nom));
+  }
+  parent.value = detail.parentId ? String(detail.parentId) : "";
+
+  $("voile-membre").hidden = false;
+  $("m-nom").focus?.();
+}
+
+async function enregistrerMembre() {
+  if (!familleEditee) return;
+  const nom = $("m-nom").value.trim();
+  if (!nom) {
+    $("m-note").textContent = "Le nom est obligatoire.";
+    return;
+  }
+
+  const texte = (id) => {
+    const valeur = $(id).value.trim();
+    return valeur.length > 0 ? valeur : null;
+  };
+  const nombre = (id) => (texte(id) ? Number($(id).value) : null);
+
+  const fiche = {
+    id: membreEdite,
+    familleId: familleEditee,
+    parentId: texte("m-parent") ? Number($("m-parent").value) : null,
+    nom,
+    prenom: texte("m-prenom"),
+    telephone: texte("m-telephone"),
+    sexe: texte("m-sexe"),
+    ordreFratrie: nombre("m-ordre"),
+    statut: texte("m-statut"),
+    dateEntree: texte("m-entree"),
+    dateSortie: texte("m-sortie"),
+    notes: texte("m-notes"),
+  };
+
+  $("m-note").textContent = "";
+  try {
+    const id = await invoke("enregistrer_membre", { fiche });
+    effacerErreur();
+    fermerFormulaire();
+    await chargerMembres();
+    await chargerResume();
+    if (membreFiche && membreFiche.id === id) await rafraichirSoldesFiche();
+  } catch (erreur) {
+    $("m-note").textContent = String(erreur);
+  }
+}
+
+async function supprimerMembre() {
+  if (!membreEdite) return;
+  const bouton = $("supprimer-membre");
+  if (!suppressionArmee) {
+    suppressionArmee = true;
+    bouton.textContent = "Confirmer la suppression";
+    bouton.classList.add("arme");
+    return;
+  }
+
+  $("m-note").textContent = "";
+  try {
+    await invoke("supprimer_membre", { membreId: membreEdite });
+    effacerErreur();
+    fermerFormulaire();
+    if (membreFiche) fermerFiche();
+    await chargerMembres();
+    await chargerResume();
+  } catch (erreur) {
+    $("m-note").textContent = String(erreur);
+  }
+}
+
+$("nouveau-membre").addEventListener("click", () => {
+  ouvrirFormulaireMembre(null).catch((e) => afficherErreur(e));
+});
+
+$("modifier-membre").addEventListener("click", () => {
+  if (membreFiche) {
+    ouvrirFormulaireMembre(membreFiche.id).catch((e) => afficherErreur(e));
+  }
+});
+
+$("fermer-membre").addEventListener("click", fermerFormulaire);
+$("annuler-membre").addEventListener("click", fermerFormulaire);
+$("enregistrer-membre").addEventListener("click", () => {
+  enregistrerMembre().catch((e) => afficherErreur(e));
+});
+$("supprimer-membre").addEventListener("click", () => {
+  supprimerMembre().catch((e) => afficherErreur(e));
+});
+
 /**
  * Annulation en deux temps : un clic arme le bouton, le second supprime.
  * Pas de `confirm()` système : la confirmation reste dans la fiche.
@@ -573,6 +731,7 @@ async function rafraichirSoldesFiche() {
   });
   if (aJour) {
     membreFiche = { ...membreFiche, ...aJour };
+    $("fiche-titre").textContent = nomComplet(membreFiche);
     majSoldesFiche(membreFiche);
     await chargerGrille(membreFiche);
     if (membreCourant && membreCourant.id === membreFiche.id) {

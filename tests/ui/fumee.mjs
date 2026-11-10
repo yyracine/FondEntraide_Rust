@@ -196,6 +196,24 @@ const reponses = {
       affectations: [{ echeance_id: 3, annee: 2026, mois: 3, montant: 1_000 }],
     },
   ],
+  // Réponse réelle de la commande : serde la sérialise en camelCase.
+  membre_edition: {
+    id: 180,
+    familleId: 180,
+    parentId: null,
+    nom: "Akesse",
+    prenom: "Comoé",
+    telephone: "07 00 00 00 00",
+    sexe: "M",
+    ordreFratrie: null,
+    statut: "actif",
+    dateEntree: "2020-01-01",
+    dateSortie: null,
+    notes: null,
+  },
+  parents_candidats: [{ id: 181, nom: "Akesse Aya" }],
+  enregistrer_membre: 181,
+  supprimer_membre: null,
   // Grille des 12 mois : janvier à mars soldés, le reste en attente.
   grille_membre: Array.from({ length: 12 }, (_, i) => ({
     echeance_id: i + 1,
@@ -595,6 +613,50 @@ assert.equal(
 
 $("fermer-fiche").click();
 $("fermer-feuille").click();
+
+// 10. gestion des membres : création, puis modification et suppression.
+$("nouveau-membre").click();
+await attendre();
+
+assert.equal($("voile-membre").hidden, false, "le formulaire s'ouvre");
+assert.equal($("supprimer-membre").hidden, true, "rien à supprimer à la création");
+assert.equal($("m-parent").children.length, 2, "les parents de la famille sont proposés");
+assert.equal(
+  dernierAppel("parents_candidats")?.args.familleId,
+  180,
+  "la famille réellement envoyée n'est jamais undefined",
+);
+
+$("m-nom").value = "Nouveau";
+$("enregistrer-membre").click();
+await attendre();
+
+const creation = dernierAppel("enregistrer_membre");
+assert.equal(creation?.args.fiche.nom, "Nouveau");
+assert.equal(creation?.args.fiche.familleId, 180);
+assert.equal(creation?.args.fiche.statut, "actif");
+assert.equal(creation?.args.fiche.id, null, "aucun identifiant à la création");
+assert.equal($("voile-membre").hidden, true, "le formulaire se referme");
+
+$("corps-membres").children[0].children[7].children[0].click();
+await attendre();
+$("modifier-membre").click();
+await attendre();
+
+assert.equal($("voile-membre").hidden, false);
+assert.equal($("m-nom").value, "Akesse");
+assert.equal($("m-telephone").value, "07 00 00 00 00");
+assert.equal($("m-entree").value, "2020-01-01", "la date d'entrée est relue");
+assert.equal($("m-prenom").value, "Comoé");
+assert.equal($("supprimer-membre").hidden, false);
+
+$("supprimer-membre").click();
+assert.equal(dernierAppel("supprimer_membre"), undefined, "suppression en deux temps");
+$("supprimer-membre").click();
+await attendre();
+
+assert.equal(dernierAppel("supprimer_membre")?.args.membreId, 180);
+assert.equal($("voile-membre").hidden, true);
 
 // 9. aucun handler n'a levé
 assert.deepEqual(

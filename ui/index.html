@@ -54,12 +54,17 @@
           <h2 id="titre-membres">Membres</h2>
           <p class="fil" id="fil"></p>
         </div>
-        <input
-          id="recherche"
-          type="search"
-          placeholder="Rechercher un nom ou un prénom…"
-          autocomplete="off"
-        />
+        <div class="barre-outils">
+          <input
+            id="recherche"
+            type="search"
+            placeholder="Rechercher un nom ou un prénom…"
+            autocomplete="off"
+          />
+          <button type="button" class="secondaire" id="nouveau-membre">
+            Nouveau membre
+          </button>
+        </div>
       </div>
       <div class="annees" id="annees"></div>
       <div class="tableau">
@@ -142,7 +147,10 @@
             <h3 id="fiche-titre">Fiche</h3>
             <p class="fil" id="fiche-chemin"></p>
           </div>
-          <button type="button" class="fermer" id="fermer-fiche" aria-label="Fermer">×</button>
+          <div class="fiche-outils">
+            <button type="button" class="secondaire" id="modifier-membre">Modifier</button>
+            <button type="button" class="fermer" id="fermer-fiche" aria-label="Fermer">×</button>
+          </div>
         </header>
 
         <div class="feuille-corps">
@@ -153,6 +161,84 @@
 
           <h4 class="fiche-section">Versements</h4>
           <div class="versements" id="fiche-versements"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="voile" id="voile-membre" hidden>
+      <div class="feuille" role="dialog" aria-modal="true" aria-labelledby="membre-titre">
+        <header class="feuille-entete">
+          <div>
+            <h3 id="membre-titre">Nouveau membre</h3>
+            <p class="fil" id="membre-famille"></p>
+          </div>
+          <button type="button" class="fermer" id="fermer-membre" aria-label="Fermer">×</button>
+        </header>
+
+        <div class="feuille-corps">
+          <div class="champs">
+            <label class="champ">
+              <span>Nom *</span>
+              <input id="m-nom" type="text" autocomplete="off" />
+            </label>
+            <label class="champ">
+              <span>Prénom</span>
+              <input id="m-prenom" type="text" autocomplete="off" />
+            </label>
+            <label class="champ">
+              <span>Téléphone</span>
+              <input id="m-telephone" type="text" autocomplete="off" />
+            </label>
+            <label class="champ">
+              <span>Sexe</span>
+              <select id="m-sexe">
+                <option value="">—</option>
+                <option value="M">Masculin</option>
+                <option value="F">Féminin</option>
+              </select>
+            </label>
+            <label class="champ">
+              <span>Statut</span>
+              <select id="m-statut">
+                <option value="actif">Actif</option>
+                <option value="inactif">Inactif</option>
+                <option value="parti">Parti</option>
+                <option value="decede">Décédé</option>
+                <option value="suspendu">Suspendu</option>
+              </select>
+            </label>
+            <label class="champ">
+              <span>Ordre dans la fratrie</span>
+              <input id="m-ordre" type="number" min="1" step="1" />
+            </label>
+            <label class="champ">
+              <span>Date d'entrée</span>
+              <input id="m-entree" type="date" />
+            </label>
+            <label class="champ">
+              <span>Date de sortie</span>
+              <input id="m-sortie" type="date" />
+            </label>
+            <label class="champ">
+              <span>Parent dans la famille</span>
+              <select id="m-parent"></select>
+            </label>
+          </div>
+
+          <label class="champ">
+            <span>Notes</span>
+            <textarea id="m-notes" rows="2"></textarea>
+          </label>
+
+          <p class="note" id="m-note"></p>
+
+          <div class="actions">
+            <button type="button" class="lien danger" id="supprimer-membre" hidden>
+              Supprimer le membre
+            </button>
+            <button type="button" class="secondaire" id="annuler-membre">Annuler</button>
+            <button type="button" class="primaire" id="enregistrer-membre">Enregistrer</button>
+          </div>
         </div>
       </div>
     </div>
