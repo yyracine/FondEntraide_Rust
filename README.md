@@ -55,4 +55,35 @@ Règles de nettoyage :
 > ⚠️ **Un paiement peut couvrir plusieurs années.** Les totaux se calculent
 > donc **toujours depuis `affectations`**, jamais depuis `paiements.campagne_id`.
 
+## Application Rust / Tauri
+
+Le portage vit dans `core/` (métier, testé par `cargo test`), `src-tauri/`
+(coquille Tauri 2) et `ui/` (interface embarquée). Le schéma est celui de
+`schema_v2.sql` ; les bases et les sauvegardes restent locales.
+
+### Mode démonstration
+
+```
+cargo run -p fonds-app -- --demo
+```
+
+Ouvre une base **fictive**, recréée à chaque lancement dans le dossier
+temporaire (`fonds-entraide-demo.db`) : 2 clans, 5 familles, 15 membres, deux
+campagnes et cinq versements passés par la même ventilation que la vraie base.
+La base réelle n'est jamais ouverte, et l'interface affiche un bandeau « Base de
+démonstration ». Le contrôle automatique de cette base :
+`cargo test -p fonds-core --test demo`.
+
+### Installeur Windows
+
+`src-tauri/tauri.conf.json` est prêt pour NSIS (installation par utilisateur,
+interface en français, icône `src-tauri/icons/icon.ico`) :
+
+```
+cargo install tauri-cli --locked
+cargo tauri build
+```
+
+L'installeur sort dans `target/release/bundle/nsis/`.
+
 

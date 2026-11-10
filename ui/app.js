@@ -9,6 +9,8 @@ const etat = {
   exercice: null,
   // Vue complète : le tableau affiche toute la base au lieu d'une famille.
   vueComplete: false,
+  // Vrai quand cette fenêtre tourne sur la base de démonstration.
+  demo: false,
   // Listes affichées : elles servent à l'export CSV, qui doit reproduire
   // exactement l'écran, filtre compris.
   clans: [],
@@ -1941,6 +1943,22 @@ for (const portee of Object.keys(PURGES)) {
   });
 }
 
+/* ------------------------------ démonstration --------------------------- */
+async function ouvrirDemonstration() {
+  try {
+    await invoke("lancer_demo");
+    $("sauvegarde-note").textContent =
+      "Démonstration ouverte dans une nouvelle fenêtre. La base réelle reste " +
+      "ouverte ici, intacte.";
+  } catch (erreur) {
+    $("sauvegarde-note").textContent = String(erreur);
+  }
+}
+
+$("ouvrir-demo").addEventListener("click", () => {
+  ouvrirDemonstration().catch((e) => afficherErreur(e));
+});
+
 $("ouvrir-sauvegarde").addEventListener("click", () => {
   ouvrirSauvegardes().catch((e) => afficherErreur(e));
 });
@@ -2201,6 +2219,17 @@ for (const [id, action] of [
 async function demarrer() {
   try {
     effacerErreur();
+    // La démonstration se voit tout de suite : aucune capture d'écran ne doit
+    // faire passer ces montants fictifs pour les vrais.
+    etat.demo = await invoke("mode_demo");
+    if (etat.demo) {
+      $("bandeau").hidden = false;
+      $("bandeau").textContent =
+        "Base de démonstration : membres et montants sont fictifs. Vos données " +
+        "réelles ne sont pas ouvertes.";
+      // Inutile de relancer une démonstration depuis la démonstration.
+      $("ouvrir-demo").hidden = true;
+    }
     await chargerResume();
     await chargerExercices();
     // Passer par chargerClans garde etat.clans rempli : l'export « clans »

@@ -8,17 +8,43 @@ use std::sync::Mutex;
 
 use fonds_core::rusqlite::Connection;
 use fonds_core::{
-    db, domaine, hierarchie, membres, noeuds, purge, sauvegardes, tarifs, ventilation,
+    db, demo, domaine, hierarchie, membres, noeuds, purge, sauvegardes, tarifs, ventilation,
 };
 
 /// État partagé : une connexion, ou l'erreur qui empêche de l'ouvrir (affichée
 /// dans l'interface plutôt que de faire tomber la fenêtre).
 struct Etat {
     base: Result<Mutex<Connection>, String>,
+    /// Vrai quand la fenêtre tourne sur la base de démonstration.
+    demo: bool,
+    /// Chemin de la base ouverte. En démonstration, c'est le fichier
+    /// temporaire : sauvegardes et exports restent donc à côté de lui, jamais
+    /// dans le dossier des vraies données.
+    chemin: PathBuf,
 }
 
 impl Etat {
     fn ouvrir() -> Self {
+        // `fonds-app --demo` : une base fictive, jamais celle de l'utilisateur.
+        if std::env::args().any(|argument| argument == "--demo") {
+            let (chemin, neuve) = chemin_demo();
+            let base = match if neuve {
+                demo::creer(&chemin)
+            } else {
+                // Une démonstration tourne déjà : son fichier est verrouillé,
+                // on la rejoint au lieu d'échouer sur un schéma existant.
+                db::ouvrir(&chemin)
+            } {
+                Ok(con) => Ok(Mutex::new(con)),
+                Err(erreur) => Err(format!("base de démonstration impossible : {erreur}")),
+            };
+            return Etat {
+                base,
+                demo: true,
+                chemin,
+            };
+        }
+
         let chemin = chemin_base();
         let base = match db::ouvrir(&chemin) {
             Ok(con) => Ok(Mutex::new(con)),
@@ -27,7 +53,11 @@ impl Etat {
                 chemin.display()
             )),
         };
-        Etat { base }
+        Etat {
+            base,
+            demo: false,
+            chemin,
+        }
     }
 
     fn avec<T>(
@@ -40,6 +70,19 @@ impl Etat {
             .map_err(|_| "verrou de base empoisonné".to_string())?;
         requete(&con).map_err(|e| e.to_string())
     }
+}
+
+/// Base de démonstration : un fichier temporaire, recréé à chaque lancement
+/// pour que les essais ne s'accumulent pas et ne touchent jamais la vraie base.
+fn chemin_demo() -> (PathBuf, bool) {
+    let chemin = std::env::temp_dir().join("fonds-entraide-demo.db");
+    for suffixe in ["", "-wal", "-shm"] {
+        let _ = std::fs::remove_file(format!("{}{suffixe}", chemin.display()));
+    }
+    // Vrai si le fichier a bien disparu : une démo déjà ouverte le verrouille,
+    // et on la réutilise au lieu de repartir de zéro.
+    let neuve = !chemin.exists();
+    (chemin, neuve)
 }
 
 /// Ordre de recherche de la base :
@@ -333,15 +376,17 @@ fn changer_tarif(
 /// Liste les copies de la base, de la plus récente à la plus ancienne.
 #[tauri::command]
 fn sauvegardes(etat: tauri::State<Etat>) -> Result<Vec<sauvegardes::Sauvegarde>, String> {
-    etat.avec(|_| sauvegardes::lister(&chemin_base()))
+    let base = etat.chemin.clone();
+    etat.avec(|_| sauvegardes::lister(&base))
 }
 
 /// Crée une copie de la base, puis ne garde que les plus récentes.
 #[tauri::command]
 fn sauvegarder_base(etat: tauri::State<Etat>) -> Result<sauvegardes::Sauvegarde, String> {
-    let copie = etat.avec(|con| sauvegardes::sauvegarder(con, &chemin_base()))?;
+    let base = etat.chemin.clone();
+    let copie = etat.avec(|con| sauvegardes::sauvegarder(con, &base))?;
     // Le nettoyage ne doit pas faire échouer une copie déjà écrite et vérifiée.
-    let _ = sauvegardes::purger(&chemin_base());
+    let _ = sauvegardes::purger(&base);
     Ok(copie)
 }
 
@@ -352,7 +397,7 @@ fn restaurer_base(
     etat: tauri::State<Etat>,
     nom: String,
 ) -> Result<sauvegardes::Sauvegarde, String> {
-    let base = chemin_base();
+    let base = etat.chemin.clone();
     let chemin = sauvegardes::chemin_de(&base, &nom).map_err(|e| e.to_string())?;
     let verrou = etat.base.as_ref().map_err(|e| e.clone())?;
     let mut con = verrou
@@ -367,7 +412,7 @@ fn restaurer_base(
 #[tauri::command]
 fn purger_base(etat: tauri::State<Etat>, portee: String) -> Result<purge::Purge, String> {
     let portee = purge::Portee::depuis(&portee).map_err(|e| e.to_string())?;
-    let base = chemin_base();
+    let base = etat.chemin.clone();
     let faite = etat.avec(|con| purge::purger_apres_copie(con, &base, portee))?;
     // Le nettoyage des copies ne doit pas faire échouer une purge déjà faite.
     let _ = sauvegardes::purger(&base);
@@ -389,8 +434,30 @@ fn exporter_csv(
             [],
             |l| l.get(0),
         )?;
-        fonds_core::exports::ecrire(&chemin_base(), &nom, &colonnes, &lignes, &instant)
+        fonds_core::exports::ecrire(&etat.chemin, &nom, &colonnes, &lignes, &instant)
     })
+}
+
+/// Ouvre une seconde fenêtre sur la base de démonstration. La fenêtre courante
+/// garde la vraie base ouverte : aucune donnée réelle n'est touchée, et l'essai
+/// se ferme d'un simple clic sur la croix.
+#[tauri::command]
+fn lancer_demo() -> Result<(), String> {
+    let executable =
+        std::env::current_exe().map_err(|erreur| format!("exécutable introuvable : {erreur}"))?;
+    std::process::Command::new(executable)
+        .arg("--demo")
+        .spawn()
+        .map_err(|erreur| format!("lancement impossible : {erreur}"))?;
+    Ok(())
+}
+
+/// Vrai quand la fenêtre tourne sur la base de démonstration : l'interface
+/// l'annonce, pour qu'aucune capture d'écran ne fasse passer la démo pour les
+/// vraies données.
+#[tauri::command]
+fn mode_demo(etat: tauri::State<Etat>) -> bool {
+    etat.demo
 }
 
 fn main() {
@@ -422,6 +489,8 @@ fn main() {
             sauvegarder_base,
             restaurer_base,
             purger_base,
+            mode_demo,
+            lancer_demo,
             clans,
             grandes_familles,
             lignees,

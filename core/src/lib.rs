@@ -13,6 +13,7 @@
 #![forbid(unsafe_code)]
 
 pub mod db;
+pub mod demo;
 pub mod domaine;
 pub mod erreur;
 pub mod exports;

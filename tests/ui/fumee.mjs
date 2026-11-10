@@ -317,6 +317,8 @@ const reponses = {
       chemin: "YAOCRE › YAOCRE APPIA › Akesse Comoé",
     },
   ],
+  mode_demo: false,
+  lancer_demo: null,
   clans: [{ id: 2, nom: "YAOCRE", description: null }],
   grandes_familles: [{ id: 7, nom: "YAOCRE APPIA", clan_id: 2 }],
   lignees: [{ id: 18, nom: "YAOCRE APPIA", grande_famille_id: 7 }],
@@ -386,6 +388,7 @@ assert.equal(actif(), "2026", "l'exercice courant est sélectionné par défaut"
 assert.equal($("th-paye").textContent, "Payé 2026", "l'en-tête porte l'année");
 assert.equal($("fil").textContent, "", "aucun fil d'Ariane avant sélection");
 assert.equal($("menu-plus").hidden, true, "le menu Plus est fermé au départ");
+assert.equal($("bandeau").hidden, true, "pas de bandeau de démonstration");
 assert.equal($("voir-tous").hidden, false, "« Voir tous » est visible au départ");
 
 // 1. clic sur le clan : la chaîne à enfant unique doit descendre jusqu'aux membres
@@ -941,6 +944,12 @@ assert.ok(
   appels.slice(indexPurge + 1).some((a) => a.commande === "exercices"),
   "les exercices sont relus après la purge",
 );
+
+// 13 ter. démonstration : une seconde fenêtre, la base réelle reste ouverte
+$("ouvrir-demo").click();
+await attendre();
+assert.ok(dernierAppel("lancer_demo"), "la démonstration est lancée");
+assert.match($("sauvegarde-note").textContent, /nouvelle fenêtre/);
 
 // 14. impression de la liste affichée : même feuille que le reçu, avec un
 //     en-tête daté et une ligne de totaux.
