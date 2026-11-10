@@ -81,13 +81,35 @@ démonstration ». Le contrôle automatique de cette base :
 ### Installeur Windows
 
 `src-tauri/tauri.conf.json` est prêt pour NSIS (installation par utilisateur,
-interface en français, icône `src-tauri/icons/icon.ico`) :
+interface en français, icône `src-tauri/icons/icon.ico`). Le CLI Tauri
+s'installe sans compilation, avec le paquet npm officiel :
 
 ```
-cargo install tauri-cli --locked
-cargo tauri build
+npm i --no-save --prefix target/tauri-cli/wrapper @tauri-apps/cli@2
+node target/tauri-cli/wrapper/node_modules/@tauri-apps/cli/tauri.js build
 ```
 
-L'installeur sort dans `target/release/bundle/nsis/`.
+L'installeur sort dans `target/release/bundle/nsis/`
+(`Fonds d'Entraide_0.1.0_x64-setup.exe`). `cargo install tauri-cli --locked`
+puis `cargo tauri build` donnent le même résultat, en compilant tout le CLI.
+
+Avec NSIS 3.13, le script généré s'arrête sur `NSISCOMCALL` (paramètres séparés
+par des virgules à l'intérieur d'un macro). Le contournement est de passer
+`"${shortcut}"` par `$R9` avant les appels `IPersistFile::Load` et
+`IPersistFile::Save` de `target/release/nsis/x64/utils.nsh`, puis de relancer
+`makensis` sur `installer.nsi` : ce dossier est régénéré à chaque build.
+
+Pour vérifier un installeur sans toucher à l'installation réelle, installez-le
+en silence dans un dossier temporaire, puis désinstallez-le :
+
+```
+"Fonds d'Entraide_0.1.0_x64-setup.exe" /S /D=C:\Temp\fonds-test-install
+"C:\Temp\fonds-test-install\uninstall.exe" /S
+```
+
+Le `fonds-app.exe` installé doit avoir le même SHA-256 que
+`target/release/fonds-app.exe`. NSIS se recopie dans `%TEMP%` et rend la main
+avant d'avoir fini : laissez quelques secondes avant de constater la
+disparition des raccourcis et de la clé de registre.
 
 
