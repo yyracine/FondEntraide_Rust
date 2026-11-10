@@ -42,9 +42,7 @@ Règles de nettoyage :
 1. `(Penfant 21)` / `(APenfant211)` **sans nom** → ignorés (ne sont pas des membres).
 2. Marqueur `(Enfant4)` retiré du nom ; le numéro va dans `ordre_fratrie`.
 3. Placeholders `XXXX`, `YYYYY`, `ZZZZZ`, `AMY` → ignorés.
-4. 7 feuilles sans grille de mois (listes de noms de lignées) → ignorées :
-   `AGOH`, `KOUADIO AMBOFF`, `YAOCRE`, `ADJOUA MALA`, `TCHOUWA`,
-   `KACOUTIE EDJAPA`, `ASSOMOU`.
+4. 7 feuilles sans grille de mois (listes de noms de lignées) → ignorées 
 
 ## Modèle de données
 
