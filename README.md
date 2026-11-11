@@ -1,7 +1,9 @@
 # Cotisations – Fonds d'entraide 
 
-> L'historique du projet — version Python, migration Rust, comptes rendus —
-> est archivé dans [`docs/historique/`](docs/historique/).
+> **Reprise de session : lire [`RESUME.md`](RESUME.md) en premier.** Il contient
+> l'état de l'application, l'architecture, les commandes de vérification et les
+> prochaines étapes. Les documents de la version Python sont archivés dans
+> [`docs/historique/`](docs/historique/).
 
 Application de bureau (Rust / Tauri 2) pour le registre des cotisations
 familiales, alimentée à l'origine par
