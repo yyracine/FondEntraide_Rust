@@ -1,4 +1,4 @@
-//! Tests d'acceptation du §5.2 de `PLAN_MIGRATION_RUST.md`.
+//! Tests d'acceptation du §5.2 de `docs/historique/PLAN_MIGRATION_RUST.md`.
 //!
 //! Chaque test travaille sur une **copie** de `cotisations_v2.db` : la base
 //! migrée n'est jamais modifiée. Si elle manque, lancer `python migrer_v2.py`.

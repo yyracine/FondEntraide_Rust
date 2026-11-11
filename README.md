@@ -1,8 +1,7 @@
 # Cotisations – Fonds d'entraide 
 
-> **Reprise de session : lire `RESUME.md` en premier.** Il contient l'état
-> d'avancement, les règles métier, les décisions prises et la prochaine
-> étape. Ce fichier-ci décrit la construction de la base depuis l'Excel.
+> L'historique du projet — version Python, migration Rust, comptes rendus —
+> est archivé dans [`docs/historique/`](docs/historique/).
 
 Application de bureau (Rust / Tauri 2) pour le registre des cotisations
 familiales, alimentée à l'origine par
