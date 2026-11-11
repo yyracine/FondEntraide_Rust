@@ -4,7 +4,8 @@
 > d'avancement, les règles métier, les décisions prises et la prochaine
 > étape. Ce fichier-ci décrit la construction de la base depuis l'Excel.
 
-Base SQLite des cotisations familiales, construite depuis
+Application de bureau (Rust / Tauri 2) pour le registre des cotisations
+familiales, alimentée à l'origine par
 `FONDS D'ENTRE AIDE Final MAJ 3 Aout 24 (1).xlsx` (54 feuilles, 1,26 Mo).
 
 ## Hiérarchie
@@ -21,15 +22,20 @@ Clan              <- cellule A1, préfixe "Famille"/"LIGNEE" retiré      (7)
 
 | Fichier | Rôle |
 |---|---|
-| `schema.sql` | Schéma SQLite (tables, contraintes, index, vues) |
-| `import_complet.py` | Import des 46 feuilles du classeur vers `cotisations.db` |
-| `requetes.py` | CLI de consultation / rapports |
-| `extrait_repertoires.py` | Extrait les 7 feuilles-répertoires vers `repertoires.json` |
-| `repertoires.json` | Totaux des feuilles `LIGNEE xxx` (référence d'audit) |
-| `cotisations.db` | Base générée |
+| `core/` | Cœur métier (SQLite, schéma v2), testé par `cargo test -p fonds-core` |
+| `src-tauri/` | Coquille Tauri 2, commandes et configuration de l'installeur |
+| `ui/` | Interface embarquée (HTML, CSS, JS), sans dépendance réseau |
+| `schema_v2.sql` | Schéma SQLite v2, embarqué dans le binaire |
+| `GUIDE_UTILISATEUR.md` | Mode d'emploi du caissier |
 | `README.md` | Ce document |
 
-## Règles d'import
+L'ancienne application Python (import Excel, interface Tkinter) a été retirée
+du dépôt ; l'historique Git la conserve.
+
+## Règles d'import d'origine
+
+Ces règles décrivent l'import initial du classeur ; les scripts Python qui
+l'exécutaient ne font plus partie du dépôt.
 
 Motif d'une feuille de cotisation :
 - lignes 1-4 : titres et en-tête des mois

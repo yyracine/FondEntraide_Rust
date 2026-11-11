@@ -3,8 +3,7 @@
 **/*.rs.bk
 
 # Bases de données et sources nominatives : elles contiennent les données
-# réelles des 599 membres. Elles restent locales ; `cotisations_v2.db` se
-# régénère avec `python migrer_v2.py`.
+# réelles des 599 membres. Elles restent locales et ne sont jamais versionnées.
 *.db
 *.db-wal
 *.db-shm
