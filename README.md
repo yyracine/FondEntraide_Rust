@@ -94,6 +94,26 @@ La base réelle n'est jamais ouverte, et l'interface affiche un bandeau « Base 
 démonstration ». Le contrôle automatique de cette base :
 `cargo test -p fonds-core --test demo`.
 
+### Sécurité
+
+Un audit du code, de la configuration Tauri et des dépendances a conduit à
+trois corrections :
+
+- `rusqlite` 0.41 et `libsqlite3-sys` 0.39.1 remplacent une version de SQLite
+  vulnérable (`RUSTSEC-2026-0459`, fuite de mémoire du cache de pages via un
+  couple `.db`/`-wal` fabriqué) ;
+- les exports CSV neutralisent les formules : un champ commençant par `=`, `+`,
+  `@`, ou par `-` suivi d'une expression, reçoit une apostrophe qu'Excel et
+  LibreOffice n'affichent pas ; un montant comme `-3000` reste un nombre ;
+- l'interface a une Content-Security-Policy : ressources distantes, `eval`,
+  plugins et réécriture de `base-uri` sont interdits.
+
+Le reste de l'audit n'a rien trouvé d'exploitable : requêtes SQL toutes
+paramétrées, noms de sauvegardes et d'exports validés, aucun `unsafe`, aucune
+requête réseau, données nominatives absentes du dépôt. Deux risques résiduels
+assumés : l'installeur n'est pas signé (voir ci-dessous) et les données ne sont
+pas chiffrées au repos — elles sont protégées par la session Windows.
+
 ### Installeur Windows
 
 `src-tauri/tauri.conf.json` est prêt pour NSIS (installation par utilisateur,
